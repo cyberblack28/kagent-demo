@@ -1,0 +1,4 @@
+resources:
+  - 00-namespaces.yaml
+  - 10-demo-app.yaml
+  - 20-demo-fault-crashloop.yaml

@@ -1,9 +1,11 @@
 # kagent kind デモ環境構築手順（Ubuntu Linux）
 
 この手順は、Ubuntu Linux 上で `kind` を使い、kagent のデモ環境を構築するためのものです。  
+kagent の公式 quick start では、**kind / Helm / kubectl** が前提で、AI エージェントを動かすには **OpenAI API key** が必要です。インストールは `curl ... get-kagent | bash` で CLI を入れ、その後 `kagent install --profile demo` を実行する流れが案内されています。citeturn868914view0turn330075view0
+
 構成は次の 3 つです。
 
-- `kagent-system` : kagent 本体
+- `kagent` : kagent 本体
 - `demo-app` : 意図的に不具合を作れるデモ用ワークロード
 - `observability` : Prometheus / Grafana などの監視基盤（任意）
 
@@ -14,11 +16,12 @@
 - Ubuntu Linux
 - 管理者権限（`sudo`）
 - インターネット接続
+- OpenAI API key
 - デモ用 namespace を作成できる権限
 
 ---
 
-## 1. Docker のインストール
+## 1. Docker をインストールする
 
 ### 1-1. パッケージ更新
 
@@ -27,13 +30,13 @@ sudo apt-get update
 sudo apt-get -y upgrade
 ```
 
-### 1-2. Docker の依存関係を入れる
+### 1-2. 依存関係を入れる
 
 ```bash
 sudo apt-get install -y ca-certificates curl gnupg
 ```
 
-### 1-3. Docker の公式 GPG キーを登録する
+### 1-3. Docker の GPG キーを登録する
 
 ```bash
 sudo install -m 0755 -d /etc/apt/keyrings
@@ -82,7 +85,7 @@ docker info
 
 ---
 
-## 2. kind / kubectl / helm のインストール
+## 2. kind / kubectl / helm をインストールする
 
 ### 2-1. kind をインストールする
 
@@ -116,66 +119,78 @@ helm version
 
 ---
 
-## 3. kind クラスタを作成する
+## 3. OpenAI API key を用意する
 
-### 3-1. ディレクトリを確認する
+kagent の quick start では、AI エージェントを動かすために OpenAI API key が必要です。  
+OpenAI Platform のダッシュボードで API key を作成し、環境変数に設定します。citeturn868914view0
 
-この手順は、以下のファイルを前提にしています。
-
-```text
-kind-config.yaml
-create-kind-cluster.sh
-delete-kind-cluster.sh
-manifests/
-kagent-values-kind.yaml
-```
-
-### 3-2. kind クラスタを作成する
+### 3-1. API key を環境変数に設定する
 
 ```bash
-chmod +x create-kind-cluster.sh delete-kind-cluster.sh
-./create-kind-cluster.sh
+export OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
-スクリプトの中では次を実行します。
-
-- kind クラスタ作成
-- namespace 作成
-- kagent デプロイ
-- demo-app デプロイ
-- CrashLoopBackOff のワークロード適用（任意）
-
-### 3-3. 手動でクラスタだけ作る場合
+### 3-2. 確認する
 
 ```bash
-kind create cluster --name kagent-demo --config kind-config.yaml
+echo "$OPENAI_API_KEY"
 ```
 
 ---
 
-## 4. デモ環境を構築する
+## 4. kind クラスタを作成する
 
-### 4-1. namespace を作成する
+### 4-1. 実行ファイル権限を付ける
+
+```bash
+chmod +x create-kind-cluster.sh delete-kind-cluster.sh
+```
+
+### 4-2. kind クラスタを作成し、デモ環境まで投入する
+
+```bash
+./create-kind-cluster.sh
+```
+
+このスクリプトは、次の順で処理します。
+
+1. kind クラスタ作成
+2. `kagent` namespace 作成
+3. kagent CLI の導入（未導入なら）
+4. `kagent install --profile demo`
+5. `demo-app` namespace のデモアプリ投入
+6. `CrashLoopBackOff` のワークロード投入（任意）
+7. 稼働確認
+
+kagent の quick start では、CLI を入れたあと `kagent install --profile demo` を実行する流れが案内されています。`kagent dashboard` を使うと UI へアクセスできます。citeturn868914view0turn868914view2
+
+---
+
+## 5. 手動で実行したい場合
+
+### 5-1. namespace を作成する
 
 ```bash
 kubectl apply -f manifests/00-namespaces.yaml
 ```
 
-### 4-2. kagent をデプロイする
+### 5-2. kagent をインストールする
 
-kagent の Helm chart は、実際に利用しているリポジトリ / バージョンに合わせて置き換えてください。
+kagent は CLI でインストールします。  
+必要なら `--profile minimal` に変更できますが、このデモでは `demo` を使います。citeturn868914view0
 
 ```bash
-helm upgrade --install kagent <KAGENT_CHART_DIR>   -n kagent-system   -f <KAGENT_VALUES_FILE>   --wait
+curl https://raw.githubusercontent.com/kagent-dev/kagent/refs/heads/main/scripts/get-kagent | bash
+kagent install --profile demo
 ```
 
-### 4-3. デモアプリをデプロイする
+### 5-3. デモアプリをデプロイする
 
 ```bash
 kubectl apply -f manifests/10-demo-app.yaml
 ```
 
-### 4-4. 障害系ワークロードをデプロイする（任意）
+### 5-4. 障害系ワークロードをデプロイする（任意）
 
 `CrashLoopBackOff` を見せたい場合のみ適用します。
 
@@ -183,35 +198,38 @@ kubectl apply -f manifests/10-demo-app.yaml
 kubectl apply -f manifests/20-demo-fault-crashloop.yaml
 ```
 
-### 4-5. 動作確認
+---
+
+## 6. 動作確認
+
+### 6-1. Pod を確認する
 
 ```bash
-kubectl get pods -n kagent-system -o wide
+kubectl get pods -n kagent
 kubectl get pods -n demo-app -o wide
 kubectl get pods -n observability -o wide
 ```
 
----
+### 6-2. kagent の UI を開く
 
-## 5. UI へアクセスする
-
-kagent の UI Service 名に合わせて port-forward します。
+kagent の quick start では、CLI の `kagent dashboard` で UI へアクセスする手順が案内されています。  
+デフォルトでは `http://localhost:8082` で開きます。citeturn868914view2
 
 ```bash
-kubectl port-forward -n kagent-system svc/<KAGENT_UI_SERVICE> 8080:80
+kagent dashboard
 ```
 
-ブラウザから以下を開きます。
+### 6-3. ブラウザで確認する
 
 ```text
-http://localhost:8080
+http://localhost:8082
 ```
 
 ---
 
-## 6. デモの流れ
+## 7. デモの流れ
 
-1. `kagent-system` の Pod を確認する
+1. `kagent` の Pod を確認する
 2. UI から Agent を作成する
 3. `demo-app` のワークロードを調査させる
 4. 必要なら `observability` の情報も確認する
@@ -219,7 +237,7 @@ http://localhost:8080
 
 ---
 
-## 7. デモ用の依頼例
+## 8. デモ用の依頼例
 
 - `demo-app namespace の Pod の状態を確認してください`
 - `この Pod が不調な原因候補をまとめてください`
@@ -228,15 +246,15 @@ http://localhost:8080
 
 ---
 
-## 8. クリーンアップ
+## 9. クリーンアップ
 
-### 8-1. スクリプトで削除する
+### 9-1. スクリプトで削除する
 
 ```bash
 ./delete-kind-cluster.sh
 ```
 
-### 8-2. 手動で削除する
+### 9-2. 手動で削除する
 
 ```bash
 kubectl delete -f manifests/20-demo-fault-crashloop.yaml
@@ -247,7 +265,6 @@ kind delete cluster --name kagent-demo
 
 ---
 
-## 9. 注意
+## 10. 注意
 
-- kagent の Helm chart や values の詳細は、利用しているリポジトリ / バージョンに合わせて調整してください。
 - このキットは、デモの流れを安定させるための土台です。

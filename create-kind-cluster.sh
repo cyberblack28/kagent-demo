@@ -2,19 +2,21 @@
 set -euo pipefail
 
 CLUSTER_NAME="${CLUSTER_NAME:-kagent-demo}"
-KAGENT_NAMESPACE="${KAGENT_NAMESPACE:-kagent-system}"
+KAGENT_NAMESPACE="${KAGENT_NAMESPACE:-kagent}"
 DEMO_NAMESPACE="${DEMO_NAMESPACE:-demo-app}"
 OBS_NAMESPACE="${OBS_NAMESPACE:-observability}"
+KAGENT_PROFILE="${KAGENT_PROFILE:-demo}"
 
-# ここは実際の環境に合わせて修正してください
-KAGENT_CHART_DIR="${KAGENT_CHART_DIR:-./helm/kagent}"
-KAGENT_VALUES_FILE="${KAGENT_VALUES_FILE:-./kagent-values-kind.yaml}"
-KAGENT_UI_SERVICE="${KAGENT_UI_SERVICE:-kagent-ui}"
-
-echo "[1/7] Preflight checks"
-for bin in docker kind kubectl helm; do
+echo "[1/8] Preflight checks"
+for bin in docker kind kubectl curl bash; do
   command -v "$bin" >/dev/null 2>&1 || { echo "Missing dependency: $bin"; exit 1; }
 done
+
+if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+  echo "OPENAI_API_KEY is not set."
+  echo "Export your OpenAI API key first."
+  exit 1
+fi
 
 docker ps >/dev/null 2>&1 || {
   echo "Docker daemon is not running."
@@ -22,42 +24,44 @@ docker ps >/dev/null 2>&1 || {
   exit 1
 }
 
-echo "[2/7] Create kind cluster: ${CLUSTER_NAME}"
+echo "[2/8] Create kind cluster: ${CLUSTER_NAME}"
 if kind get clusters | grep -qx "${CLUSTER_NAME}"; then
   echo "Cluster already exists: ${CLUSTER_NAME}"
 else
   kind create cluster --name "${CLUSTER_NAME}" --config kind-config.yaml
 fi
 
-echo "[3/7] Create namespaces"
-kubectl apply -f manifests/00-namespaces.yaml
+echo "[3/8] Create namespaces"
+kubectl create namespace "${KAGENT_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace "${DEMO_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace "${OBS_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
-echo "[4/7] Install kagent"
-if [[ ! -d "${KAGENT_CHART_DIR}" ]]; then
-  echo "WARNING: chart dir not found: ${KAGENT_CHART_DIR}"
-  echo "         Replace KAGENT_CHART_DIR with your actual chart path."
-else
-  helm upgrade --install kagent "${KAGENT_CHART_DIR}"     -n "${KAGENT_NAMESPACE}"     -f "${KAGENT_VALUES_FILE}"     --wait
+echo "[4/8] Install kagent CLI if needed"
+if ! command -v kagent >/dev/null 2>&1; then
+  curl https://raw.githubusercontent.com/kagent-dev/kagent/refs/heads/main/scripts/get-kagent | bash
 fi
 
-echo "[5/7] Deploy demo app"
+echo "[5/8] Install kagent into the cluster"
+kagent install --profile "${KAGENT_PROFILE}"
+
+echo "[6/8] Deploy demo app"
 kubectl apply -f manifests/10-demo-app.yaml
 kubectl apply -f manifests/20-demo-fault-crashloop.yaml || true
 
-echo "[6/7] Verify"
+echo "[7/8] Verify"
 kubectl get pods -n "${KAGENT_NAMESPACE}" -o wide || true
 kubectl get pods -n "${DEMO_NAMESPACE}" -o wide || true
 kubectl get pods -n "${OBS_NAMESPACE}" -o wide || true
+kagent get agent || true
 
-echo "[7/7] Next step"
+echo "[8/8] Next step"
 cat <<EOF
 
 Done.
 
 Suggested next steps:
-- Port-forward the kagent UI service:
-  kubectl port-forward -n ${KAGENT_NAMESPACE} svc/${KAGENT_UI_SERVICE} 8080:80
-- Open: http://localhost:8080
-- Use the demo-app workload to test diagnosis flows
+- Open the dashboard:
+  kagent dashboard
+- Use the demo-app workload to test diagnosis flows.
 
 EOF

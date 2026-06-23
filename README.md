@@ -1,35 +1,50 @@
-# kagent デモキット
+# kagent kind デモキット v5
 
-このキットは、OKE 上で kagent を紹介するデモを組み立てるための補助ファイルです。
+このキットは、Ubuntu Linux 上で `kind` を使って kagent を試すためのひな形です。  
+デモの準備・リハーサル用途を想定しており、当日の本番デモは OKE を推奨します。
 
 ## 含まれるもの
 
-- `install.md`
-- `manifests/00-namespaces.yaml`
-- `manifests/10-demo-app.yaml`
-- `manifests/20-demo-fault-crashloop.yaml`
-- `manifests/kustomization.yaml`
+- `install.md` : Docker / kind / kagent デモ環境の全手順
+- `kind-config.yaml` : 3 ノード kind クラスタ定義
+- `create-kind-cluster.sh` : クラスタ作成とデモ環境投入
+- `delete-kind-cluster.sh` : クラスタ削除
+- `manifests/` : デモ用 namespace / アプリ / 障害ワークロード
+- `kagent-values-kind.yaml` : デモ用 values のたたき台
+
+## 前提
+
+- Ubuntu Linux
+- Docker
+- kind
+- kubectl
+- helm
 
 ## 使い方
 
-1. `install.md` に沿って namespace を作成
-2. kagent を Helm でデプロイ
-3. `demo-app` を適用
-4. 必要なら `demo-crashloop` を適用
-5. UI から Agent を作ってデモを実行
+```bash
+chmod +x create-kind-cluster.sh delete-kind-cluster.sh
+./create-kind-cluster.sh
+```
 
-## 想定
+## 重要な置き換え項目
 
-- `kagent-system` : kagent 本体
-- `demo-app` : 調査対象
-- `observability` : 監視基盤（任意）
+スクリプト内の次の値は、実際の kagent リポジトリ / chart / values に合わせて置き換えてください。
 
-## 変更ポイント
+- `KAGENT_CHART_DIR`
+- `KAGENT_VALUES_FILE`
+- `KAGENT_UI_SERVICE`
+- `KAGENT_NAMESPACE`
 
-- `install.md` の Helm chart パス
-- `install.md` の UI Service 名
-- 必要なら namespace 名
+## デモの考え方
 
-## 補足
+- まず `kagent-system` の Pod が kind 上で動いていることを確認
+- 次に `demo-app` namespace のワークロードを調査
+- 必要なら `CrashLoopBackOff` を仕込んで再現
+- 監視基盤は必要最低限にし、リハーサルを安定させる
 
-この構成は、デモを安定させるために **「読むだけの対象」** と **「壊せる対象」** を分けています。
+## クリーンアップ
+
+```bash
+./delete-kind-cluster.sh
+```

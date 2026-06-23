@@ -1,0 +1,33 @@
+# kagent-values-kind.yaml
+# Demo placeholder values for kind
+# Replace chart keys to match the actual kagent chart version you are using.
+
+providers:
+  default: openai
+  openai:
+    provider: OpenAI
+    model: "gpt-4.1-mini"
+    apiKeySecretRef: kagent-openai
+    apiKey: "dummy-key-for-demo"
+    config:
+      baseUrl: "https://api.openai.com/v1"
+      modelInfo:
+        family: gpt
+        functionCalling: true
+        jsonOutput: true
+        vision: false
+
+app:
+  env:
+    - name: HTTPX_TIMEOUT
+      value: "300"
+    - name: OPENAI_TIMEOUT
+      value: "300"
+    - name: REQUEST_TIMEOUT
+      value: "300"
+
+nodeSelector:
+  kubernetes.io/os: linux
+
+ociGenaiProxy:
+  enabled: false

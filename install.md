@@ -36,7 +36,10 @@ sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
 ### 1-4. Docker リポジトリを追加する
 ```bash
-echo   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu   $(. /etc/os-release && echo "${VERSION_CODENAME}") stable" |   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo \"${VERSION_CODENAME}\") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 ```
 
 ### 1-5. Docker Engine をインストールする
@@ -119,10 +122,11 @@ chmod +x create-kind-cluster.sh delete-kind-cluster.sh
 2. `kagent` namespace 作成
 3. kagent CLI の導入（未導入なら）
 4. `kagent install --profile demo`
-5. OCI Generative AI 用の `ModelConfig` と Secret を作成
-6. `demo-app` namespace のデモアプリ投入
-7. `CrashLoopBackOff` のワークロード投入（任意）
-8. 稼働確認
+5. kagent の CRD が立つまで待機
+6. OCI Generative AI 用の `ModelConfig` と Secret を作成
+7. `demo-app` namespace のデモアプリ投入
+8. `CrashLoopBackOff` のワークロード投入（任意）
+9. 稼働確認
 
 ---
 
@@ -139,19 +143,26 @@ curl https://raw.githubusercontent.com/kagent-dev/kagent/refs/heads/main/scripts
 kagent install --profile demo
 ```
 
-### 5-3. OCI Generative AI 用の Secret と ModelConfig を作成する
+### 5-3. kagent の CRD が立つまで待つ
 ```bash
-kubectl -n kagent create secret generic kagent-oci-genai   --from-literal=PROVIDER_API_KEY="${OCI_GENAI_API_KEY}"
+kubectl get crd | grep -i kagent
+kubectl get crd | grep -i modelconfig
+```
+
+### 5-4. OCI Generative AI 用の Secret と ModelConfig を作成する
+```bash
+kubectl -n kagent create secret generic kagent-oci-genai \
+  --from-literal=PROVIDER_API_KEY="${OCI_GENAI_API_KEY}"
 
 envsubst < manifests/01-modelconfig-oci.yaml | kubectl apply -f -
 ```
 
-### 5-4. デモアプリをデプロイする
+### 5-5. デモアプリをデプロイする
 ```bash
 kubectl apply -f manifests/10-demo-app.yaml
 ```
 
-### 5-5. 障害系ワークロードをデプロイする（任意）
+### 5-6. 障害系ワークロードをデプロイする（任意）
 ```bash
 kubectl apply -f manifests/20-demo-fault-crashloop.yaml
 ```

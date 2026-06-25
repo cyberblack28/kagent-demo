@@ -1,4 +1,4 @@
-# kagent kind デモキット v10
+# kagent kind デモキット v11
 
 Ubuntu Linux 上で `kind` を使って kagent のデモ環境を構築するためのキットです。
 OpenAI クレジットを使わず、OCI Generative AI の OpenAI-compatible API を使う前提にしています。

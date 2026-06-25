@@ -1,0 +1,12 @@
+apiVersion: kagent.dev/v1alpha2
+kind: ModelConfig
+metadata:
+  name: oci-genai-model
+  namespace: kagent
+spec:
+  apiKeySecret: kagent-oci-genai
+  apiKeySecretKey: PROVIDER_API_KEY
+  model: ${OCI_GENAI_MODEL}
+  provider: OpenAI
+  openAI:
+    baseUrl: "${OCI_GENAI_BASE_URL}"

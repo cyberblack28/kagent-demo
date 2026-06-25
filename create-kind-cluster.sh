@@ -1,53 +1,95 @@
 #!/usr/bin/env bash
-# kagent 導入済みクラスタに対して、エージェントを OCI GenAI(OpenAI 互換)へ向け直す。
-# 環境構築(kind / kagent install)には手を出さない。元の create-kind-cluster.sh で
-# 環境を作った後にこれを実行する想定。
 set -euo pipefail
- 
+
+CLUSTER_NAME="${CLUSTER_NAME:-kagent-demo}"
 KAGENT_NAMESPACE="${KAGENT_NAMESPACE:-kagent}"
+DEMO_NAMESPACE="${DEMO_NAMESPACE:-demo-app}"
 OCI_GENAI_REGION="${OCI_GENAI_REGION:-us-chicago-1}"
 OCI_GENAI_MODEL="${OCI_GENAI_MODEL:-openai.gpt-oss-120b}"
-# 末尾スラッシュなし(/chat/completions 連結時の // 事故防止)
+# 末尾スラッシュなし。OpenAI SDK が /chat/completions を連結する際の "//" 事故を防ぐ。
 OCI_GENAI_BASE_URL="${OCI_GENAI_BASE_URL:-https://inference.generativeai.${OCI_GENAI_REGION}.oci.oraclecloud.com/20231130/actions/v1}"
 MODEL_CONFIG_NAME="${MODEL_CONFIG_NAME:-oci-genai-openai-compatible}"
- 
-[[ -n "${OCI_GENAI_API_KEY:-}" ]] || { echo "OCI_GENAI_API_KEY is not set."; exit 1; }
- 
-# 前提チェック: kagent の CRD が存在すること
-kubectl get crd 2>/dev/null | grep -qi modelconfig || {
-  echo "ModelConfig CRD が見つかりません。先に環境構築スクリプトで kagent を導入してください。"
-  exit 1
+
+wait_for_crd() {
+  local pattern="$1"
+  local timeout_seconds="${2:-180}"
+  local elapsed=0
+  local crd_name=""
+  echo "Waiting for CRD matching: ${pattern}"
+  while [[ "${elapsed}" -lt "${timeout_seconds}" ]]; do
+    crd_name="$(kubectl get crd -o name 2>/dev/null | grep -i "${pattern}" | head -n1 || true)"
+    if [[ -n "${crd_name}" ]]; then
+      kubectl wait --for=condition=Established "${crd_name}" --timeout=60s >/dev/null 2>&1 || true
+      echo "Found CRD: ${crd_name}"
+      return 0
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+  echo "Timed out waiting for CRD matching: ${pattern}"
+  return 1
 }
- 
+
+# OCI GenAI(OpenAI 互換)へ向け直すための JSON merge patch を生成（ModelConfig 用）。
 oci_modelconfig_patch() {
   cat <<JSON
 {"spec":{"provider":"OpenAI","model":"${OCI_GENAI_MODEL}","apiKeySecret":"kagent-oci-genai","apiKeySecretKey":"OCI_GENAI_API_KEY","openAI":{"baseUrl":"${OCI_GENAI_BASE_URL}"}}}
 JSON
 }
- 
-# 1) Secret(キーは前後空白・改行を除去して格納)
-CLEAN_KEY="$(printf %s "${OCI_GENAI_API_KEY}" | tr -d '[:space:]')"
+
+for bin in docker kind kubectl curl bash envsubst; do
+  command -v "$bin" >/dev/null 2>&1 || { echo "Missing dependency: $bin"; exit 1; }
+done
+
+if [[ -z "${OCI_GENAI_API_KEY:-}" ]]; then
+  echo "OCI_GENAI_API_KEY is not set."
+  exit 1
+fi
+
+docker ps >/dev/null 2>&1 || { echo "Docker daemon is not running."; exit 1; }
+
+if ! kind get clusters | grep -qx "${CLUSTER_NAME}"; then
+  kind create cluster --name "${CLUSTER_NAME}" --config kind-config.yaml
+fi
+
+kubectl create namespace "${KAGENT_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace "${DEMO_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+
+if ! command -v kagent >/dev/null 2>&1; then
+  curl https://raw.githubusercontent.com/kagent-dev/kagent/refs/heads/main/scripts/get-kagent | bash
+fi
+
+# kagent install(demo)は LLM プロバイダのキーを前提に進む(無いとサンプル Agent 等の
+# 導入で止まり CRD まで到達しないことがある)。ここでは OCI のキーを渡して install を
+# 完走させ、直後に ModelConfig/Agent を OCI へ向け直す。デフォルト ModelConfig に
+# 一時的に入るこのキーは、後段の patch で上書きされるため実害はない。
+export OPENAI_API_KEY="${OCI_GENAI_API_KEY}"
+kagent install --profile demo
+# 以降で誤って参照されないよう後始末
+unset OPENAI_API_KEY || true
+
+if ! wait_for_crd "modelconfig" 300; then
+  echo "---- kagent install diagnostics ----"
+  command -v helm >/dev/null 2>&1 && helm list -A || true
+  kubectl get crd 2>/dev/null | grep -i kagent || echo "(no kagent CRDs found)"
+  kubectl get pods -A 2>/dev/null | grep -i kagent || true
+  echo "CRD が作成されていません。helm release / Pod 状態を上記で確認してください。"
+  echo "release が無い場合は install 未完(キー or ghcr.io 取得失敗)、"
+  echo "Pod が ImagePullBackOff/Pending の場合はイメージ取得待ちです。"
+  exit 1
+fi
+wait_for_crd "agent" 300 || true
+
 kubectl -n "${KAGENT_NAMESPACE}" create secret generic kagent-oci-genai \
-  --from-literal=OCI_GENAI_API_KEY="${CLEAN_KEY}" \
+  --from-literal=OCI_GENAI_API_KEY="${OCI_GENAI_API_KEY}" \
   --dry-run=client -o yaml | kubectl apply -f -
- 
-# 2) OCI 用 ModelConfig(インライン適用)
-cat <<YAML | kubectl apply -f -
-apiVersion: kagent.dev/v1alpha2
-kind: ModelConfig
-metadata:
-  name: ${MODEL_CONFIG_NAME}
-  namespace: ${KAGENT_NAMESPACE}
-spec:
-  provider: OpenAI
-  model: ${OCI_GENAI_MODEL}
-  apiKeySecret: kagent-oci-genai
-  apiKeySecretKey: OCI_GENAI_API_KEY
-  openAI:
-    baseUrl: "${OCI_GENAI_BASE_URL}"
-YAML
- 
-# 3) baseUrl 未設定の OpenAI 系 ModelConfig(=デモのデフォルト)を OCI へ向け直す
+
+OCI_GENAI_MODEL="${OCI_GENAI_MODEL}" OCI_GENAI_BASE_URL="${OCI_GENAI_BASE_URL}" \
+  envsubst < manifests/01-modelconfig-oci.yaml | kubectl apply -f -
+
+# --- ここが今回の本質的な修正 -------------------------------------------------
+# (1) baseUrl 未設定の OpenAI 系 ModelConfig(= kagent デモのデフォルト)を OCI へ向け直す。
+#     Agent がデフォルトを参照していても api.openai.com に飛ばなくなる。
 echo "Redirecting baseUrl-less OpenAI ModelConfigs to OCI..."
 for mc in $(kubectl get modelconfig -n "${KAGENT_NAMESPACE}" -o name 2>/dev/null || true); do
   [[ "${mc}" == *"${MODEL_CONFIG_NAME}" ]] && continue
@@ -58,8 +100,8 @@ for mc in $(kubectl get modelconfig -n "${KAGENT_NAMESPACE}" -o name 2>/dev/null
     kubectl patch "${mc}" -n "${KAGENT_NAMESPACE}" --type merge -p "$(oci_modelconfig_patch)" || true
   fi
 done
- 
-# 4) すべての Agent を OCI 用 ModelConfig に向ける(declarative / spec直下 両対応)
+
+# (2) すべての Agent を OCI 用 ModelConfig に明示的に向ける(declarative / spec直下 両対応)。
 echo "Pointing agents to ${MODEL_CONFIG_NAME}..."
 for ag in $(kubectl get agent -n "${KAGENT_NAMESPACE}" -o name 2>/dev/null || true); do
   if kubectl get "${ag}" -n "${KAGENT_NAMESPACE}" -o jsonpath='{.spec.declarative}' 2>/dev/null | grep -q .; then
@@ -70,17 +112,21 @@ for ag in $(kubectl get agent -n "${KAGENT_NAMESPACE}" -o name 2>/dev/null || tr
       -p "{\"spec\":{\"modelConfig\":\"${MODEL_CONFIG_NAME}\"}}" || true
   fi
 done
- 
-# 5) 反映のため再起動
+
+# (3) 反映のため再起動(Kind デモ用途なので namespace まとめて)。
 kubectl rollout restart deployment -n "${KAGENT_NAMESPACE}" >/dev/null 2>&1 || true
- 
+# ---------------------------------------------------------------------------
+
+kubectl apply -f manifests/10-demo-app.yaml
+kubectl apply -f manifests/20-demo-fault-crashloop.yaml || true
+
 echo
 echo "=== ModelConfig wiring ==="
 kubectl get modelconfig -n "${KAGENT_NAMESPACE}" \
   -o custom-columns=NAME:.metadata.name,PROVIDER:.spec.provider,BASEURL:.spec.openAI.baseUrl 2>/dev/null || true
 echo
 echo "=== Agent -> ModelConfig ==="
-kubectl get agent -n "${KAGENT_NAMESPACE}" -o yaml 2>/dev/null | grep -iE "name:|modelConfig" || true
- 
+kubectl get agent -n "${KAGENT_NAMESPACE}" -o yaml 2>/dev/null | grep -iE "^  - |name:|modelConfig" || true
+
 echo
 echo "Done. Run: kagent dashboard"

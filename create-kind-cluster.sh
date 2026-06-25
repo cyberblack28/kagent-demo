@@ -37,7 +37,6 @@ if [[ -z "${OCI_GENAI_API_KEY:-}" ]]; then
   exit 1
 fi
 
-# kagent installer expects OPENAI_API_KEY, so map OCI GenAI key to that name.
 export OPENAI_API_KEY="${OPENAI_API_KEY:-${OCI_GENAI_API_KEY}}"
 
 docker ps >/dev/null 2>&1 || { echo "Docker daemon is not running."; exit 1; }
@@ -58,7 +57,7 @@ kagent install --profile demo
 wait_for_crd "modelconfig" 180
 wait_for_crd "agent" 180
 
-kubectl -n "${KAGENT_NAMESPACE}" create secret generic kagent-oci-genai   --from-literal=PROVIDER_API_KEY="${OCI_GENAI_API_KEY}"   --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n "${KAGENT_NAMESPACE}" create secret generic kagent-oci-genai   --from-literal=OCI_GENAI_API_KEY="${OCI_GENAI_API_KEY}"   --dry-run=client -o yaml | kubectl apply -f -
 
 OCI_GENAI_MODEL="${OCI_GENAI_MODEL}" OCI_GENAI_BASE_URL="${OCI_GENAI_BASE_URL}" envsubst < manifests/01-modelconfig-oci.yaml | kubectl apply -f -
 

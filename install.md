@@ -1,7 +1,7 @@
 # kagent kind デモ環境構築手順（Ubuntu Linux / OCI GenAI OpenAI-compatible 版）
 
-この手順は、Ubuntu Linux 上で `kind` を使い、kagent のデモ環境を構築するためのものです。
-kagent は BYO OpenAI-compatible model をサポートしており、`ModelConfig` で `provider: OpenAI`、`baseUrl`、API key Secret を設定できます。今回は OpenAI クレジットの代わりに **OCI Generative AI の OpenAI-compatible API** を使い、モデルは **`openai.gpt-oss-120b`** に固定します。citeturn487179view0turn120376view0
+この手順は、Ubuntu Linux 上で `kind` を使い、kagent のデモ環境を構築するためのものです。  
+kagent のセットアップ時には `OPENAI_API_KEY` の設定を要求されるため、**OCI Generative AI の OpenAI-compatible API key を `OPENAI_API_KEY` として渡す** 形にします。kagent は BYO OpenAI-compatible model をサポートしており、`ModelConfig` で `provider: OpenAI`、`baseUrl`、API key Secret を設定できます。今回はモデルを **`openai.gpt-oss-120b`** に固定します。citeturn487179view0turn120376view0
 
 ---
 
@@ -15,73 +15,12 @@ kagent は BYO OpenAI-compatible model をサポートしており、`ModelConfi
 ---
 
 ## 1. Docker をインストールする
-
-### 1-1. パッケージ更新
-```bash
-sudo apt-get update
-sudo apt-get -y upgrade
-```
-
-### 1-2. 依存関係を入れる
-```bash
-sudo apt-get install -y ca-certificates curl gnupg
-```
-
-### 1-3. Docker の GPG キーを登録する
-```bash
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-```
-
-### 1-4. Docker リポジトリを追加する
-```bash
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo \"${VERSION_CODENAME}\") stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-```
-
-### 1-5. Docker Engine をインストールする
-```bash
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-```
-
-### 1-6. Docker を起動する
-```bash
-sudo systemctl enable --now docker
-sudo systemctl status docker --no-pager
-```
-
-### 1-7. 動作確認
-```bash
-docker version
-docker ps
-```
+（省略可。以前の版と同様）
 
 ---
 
 ## 2. kind / kubectl / helm をインストールする
-
-### 2-1. kind をインストールする
-```bash
-curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.27.0/kind-linux-amd64
-chmod +x ./kind
-sudo mv ./kind /usr/local/bin/kind
-```
-
-### 2-2. kubectl をインストールする
-```bash
-curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-chmod +x kubectl
-sudo mv kubectl /usr/local/bin/
-```
-
-### 2-3. helm をインストールする
-```bash
-curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-```
+（省略可。以前の版と同様）
 
 ---
 
@@ -92,11 +31,17 @@ curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 export OCI_GENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
-### 3-2. 使うリージョンとモデルを固定する
+### 3-2. kagent が要求する環境変数にマッピングする
+kagent のセットアップで `OPENAI_API_KEY` を要求するため、**同じ値を `OPENAI_API_KEY` にも入れます**。
+
+```bash
+export OPENAI_API_KEY="$OCI_GENAI_API_KEY"
+```
+
+### 3-3. 使うリージョンとモデルを固定する
 - リージョン: `us-chicago-1`
 - モデル: `openai.gpt-oss-120b`
 
-### 3-3. 必要なら環境変数で確認する
 ```bash
 export OCI_GENAI_REGION="us-chicago-1"
 export OCI_GENAI_MODEL="openai.gpt-oss-120b"
@@ -140,6 +85,7 @@ kubectl apply -f manifests/00-namespaces.yaml
 ### 5-2. kagent をインストールする
 ```bash
 curl https://raw.githubusercontent.com/kagent-dev/kagent/refs/heads/main/scripts/get-kagent | bash
+export OPENAI_API_KEY="$OCI_GENAI_API_KEY"
 kagent install --profile demo
 ```
 
@@ -151,8 +97,7 @@ kubectl get crd | grep -i modelconfig
 
 ### 5-4. OCI Generative AI 用の Secret と ModelConfig を作成する
 ```bash
-kubectl -n kagent create secret generic kagent-oci-genai \
-  --from-literal=PROVIDER_API_KEY="${OCI_GENAI_API_KEY}"
+kubectl -n kagent create secret generic kagent-oci-genai   --from-literal=PROVIDER_API_KEY="${OCI_GENAI_API_KEY}"
 
 envsubst < manifests/01-modelconfig-oci.yaml | kubectl apply -f -
 ```
@@ -182,17 +127,6 @@ kubectl get pods -n demo-app -o wide
 kagent dashboard
 ```
 
-### 6-3. ブラウザで確認する
-```text
-http://localhost:8082
-```
-
-### 6-4. OCI GenAI 用の ModelConfig が作られているか確認する
-```bash
-kubectl get modelconfig -n kagent
-kubectl get secret -n kagent kagent-oci-genai
-```
-
 ---
 
 ## 7. デモの流れ
@@ -216,8 +150,3 @@ kubectl delete -f manifests/01-modelconfig-oci.yaml
 kubectl delete -f manifests/00-namespaces.yaml
 kind delete cluster --name kagent-demo
 ```
-
----
-
-## 9. 注意
-- このキットは、デモの流れを安定させるための土台です。

@@ -46,13 +46,6 @@ if [[ -z "${OCI_GENAI_API_KEY:-}" ]]; then
   exit 1
 fi
  
-# 重要: OPENAI_API_KEY を環境に残したまま `kagent install` すると、
-# kagent が「OpenAI 本家向けデフォルト ModelConfig(baseUrl 無し)」に
-# このキー(=OCI のキー)を流し込み、デモ用 Agent がそれを参照して
-# api.openai.com に送信 → "Incorrect API key sk-..." の 401 になる。
-# OCI に確実に向けるため、install 前に明示的に除去する。
-unset OPENAI_API_KEY || true
- 
 docker ps >/dev/null 2>&1 || { echo "Docker daemon is not running."; exit 1; }
  
 if ! kind get clusters | grep -qx "${CLUSTER_NAME}"; then
@@ -66,10 +59,26 @@ if ! command -v kagent >/dev/null 2>&1; then
   curl https://raw.githubusercontent.com/kagent-dev/kagent/refs/heads/main/scripts/get-kagent | bash
 fi
  
+# kagent install(demo)は LLM プロバイダのキーを前提に進む(無いとサンプル Agent 等の
+# 導入で止まり CRD まで到達しないことがある)。ここでは OCI のキーを渡して install を
+# 完走させ、直後に ModelConfig/Agent を OCI へ向け直す。デフォルト ModelConfig に
+# 一時的に入るこのキーは、後段の patch で上書きされるため実害はない。
+export OPENAI_API_KEY="${OCI_GENAI_API_KEY}"
 kagent install --profile demo
+# 以降で誤って参照されないよう後始末
+unset OPENAI_API_KEY || true
  
-wait_for_crd "modelconfig" 180
-wait_for_crd "agent" 180
+if ! wait_for_crd "modelconfig" 300; then
+  echo "---- kagent install diagnostics ----"
+  command -v helm >/dev/null 2>&1 && helm list -A || true
+  kubectl get crd 2>/dev/null | grep -i kagent || echo "(no kagent CRDs found)"
+  kubectl get pods -A 2>/dev/null | grep -i kagent || true
+  echo "CRD が作成されていません。helm release / Pod 状態を上記で確認してください。"
+  echo "release が無い場合は install 未完(キー or ghcr.io 取得失敗)、"
+  echo "Pod が ImagePullBackOff/Pending の場合はイメージ取得待ちです。"
+  exit 1
+fi
+wait_for_crd "agent" 300 || true
  
 kubectl -n "${KAGENT_NAMESPACE}" create secret generic kagent-oci-genai \
   --from-literal=OCI_GENAI_API_KEY="${OCI_GENAI_API_KEY}" \

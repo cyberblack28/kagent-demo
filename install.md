@@ -94,22 +94,14 @@ helm version
 export OCI_GENAI_API_KEY="$(printf %s 'sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' | tr -d '[:space:]')"
 ```
 
-### 3-2. same-key フローを再現したい場合
-`create-kind-cluster.sh` は `OPENAI_API_KEY` が未設定なら `OCI_GENAI_API_KEY` を使います。  
-当時の流れをそのまま再現したい場合は、先に同じ値を入れておきます。
-
-```bash
-export OPENAI_API_KEY="$OCI_GENAI_API_KEY"
-```
-
-### 3-3. リージョン / モデル / base URL を設定する
+### 3-2. リージョン / モデル / base URL を設定する
 ```bash
 export OCI_GENAI_REGION="us-chicago-1"
 export OCI_GENAI_MODEL="openai.gpt-oss-120b"
 export OCI_GENAI_BASE_URL="https://inference.generativeai.${OCI_GENAI_REGION}.oci.oraclecloud.com/20231130/actions/v1"
 ```
 
-### 3-4. OCI GenAI の疎通確認
+### 3-3. OCI GenAI の疎通確認
 ```bash
 curl -sS "${OCI_GENAI_BASE_URL}/chat/completions" \
   -H "Authorization: Bearer ${OCI_GENAI_API_KEY}" \

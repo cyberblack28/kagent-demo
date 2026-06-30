@@ -1,7 +1,11 @@
-# kagent kind デモキット（401回避版）
+# kagent kind デモキット（install 分離版）
 
-このキットは、kind 環境とデモ用ワークロードを作るためのものです。
-OpenAI / OCI GenAI への API 呼び出しは行いません。
+このキットは、OCI GenAI の接続確認と kagent install を分離した版です。
+`OCI_GENAI_API_KEY` を OpenAI のキーに流用しないことで、401 を避けやすくしています。
+
+## 必須
+- `OCI_GENAI_API_KEY` : OCI GenAI 用
+- `OPENAI_API_KEY` : kagent install 用（OCI と同じ値にしない）
 
 ## 含まれるもの
 - `install.md`
@@ -9,14 +13,3 @@ OpenAI / OCI GenAI への API 呼び出しは行いません。
 - `create-kind-cluster.sh`
 - `delete-kind-cluster.sh`
 - `manifests/`
-
-## できること
-- kind クラスタ作成
-- demo namespace 作成
-- demo-web / demo-crashloop のデプロイ
-- Service selector mismatch のデモ
-
-## しないこと
-- OpenAI API 呼び出し
-- OCI GenAI API 呼び出し
-- kagent install

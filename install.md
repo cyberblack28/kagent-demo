@@ -1,7 +1,20 @@
-# kagent kind デモ環境構築手順（401回避版）
+# kagent kind デモ環境構築手順（install 分離版）
 
-この版では、`create-kind-cluster.sh` は kind クラスタとデモ用 namespace / workload を作成するだけです。
-OpenAI / OCI GenAI の API 呼び出しを行わないため、401 を避けられます。
+この版では、`OCI_GENAI_API_KEY` と `OPENAI_API_KEY` を分けて扱います。
+**OCI のキーを `OPENAI_API_KEY` に入れると 401 の原因になります。**
+
+## 実行前の環境変数
+```bash
+export OCI_GENAI_API_KEY="...OCI GenAI のキー..."
+export OPENAI_API_KEY="...kagent install 用の OpenAI キー..."
+export OCI_GENAI_REGION="us-chicago-1"
+export OCI_GENAI_MODEL="openai.gpt-oss-120b"
+```
+
+## 動作確認
+```bash
+curl -sS "${OCI_GENAI_BASE_URL}/chat/completions"   -H "Authorization: Bearer ${OCI_GENAI_API_KEY}"   -H "Content-Type: application/json"   -d "{"model":"${OCI_GENAI_MODEL}","messages":[{"role":"user","content":"ping"}]}"
+```
 
 ## 実行
 ```bash
@@ -9,12 +22,7 @@ chmod +x create-kind-cluster.sh delete-kind-cluster.sh
 ./create-kind-cluster.sh
 ```
 
-## 使い方
-- `demo-web` は正常系
-- `demo-crashloop` は CrashLoop デモ用
-- `demo-web` Service は selector mismatch で一時的に接続断のデモが可能
-- 復元は `manifests/31-demo-service-restore.yaml`
-
-## 注意
-- `OCI_GENAI_API_KEY` を `OPENAI_API_KEY` に流用しない
-- このキットは kagent install を含まない
+## ポイント
+- `kagent install` には `OPENAI_API_KEY` を使う
+- OCI GenAI は `ModelConfig` で使う
+- 2つのキーが同じだと 401 になりやすい

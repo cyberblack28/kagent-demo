@@ -3,3 +3,5 @@ resources:
   - 01-modelconfig-oci.yaml
   - 10-demo-app.yaml
   - 20-demo-fault-crashloop.yaml
+  - 30-demo-service-mismatch.yaml
+  - 31-demo-service-restore.yaml

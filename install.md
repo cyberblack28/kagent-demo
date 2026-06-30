@@ -167,18 +167,6 @@ kubectl apply -f manifests/10-demo-app.yaml
 kubectl apply -f manifests/20-demo-fault-crashloop.yaml
 ```
 
-### 5-7. Service / Pod ずれのデモを行う（任意）
-```bash
-kubectl apply -f manifests/30-demo-service-mismatch.yaml
-kubectl get endpoints -n demo-app demo-web
-```
-
-元に戻すには:
-
-```bash
-kubectl apply -f manifests/31-demo-service-restore.yaml
-```
-
 ---
 
 ## 6. 動作確認
@@ -201,7 +189,6 @@ kagent dashboard
 2. UI から Agent を作成する
 3. OCI Generative AI の ModelConfig を選択する
 4. `demo-app` のワークロードを調査させる
-5. 必要に応じて Service / Pod の不整合も見せる
 
 ---
 
@@ -212,8 +199,6 @@ kagent dashboard
 
 または手動で:
 ```bash
-kubectl delete -f manifests/31-demo-service-restore.yaml
-kubectl delete -f manifests/30-demo-service-mismatch.yaml
 kubectl delete -f manifests/20-demo-fault-crashloop.yaml
 kubectl delete -f manifests/10-demo-app.yaml
 kubectl delete -f manifests/01-modelconfig-oci.yaml

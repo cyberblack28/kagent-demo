@@ -1,21 +1,27 @@
-# kagent kind デモキット
+# kagent kind デモキット（rollback）
 
-Ubuntu Linux 上で `kind` を使って kagent のデモ環境を構築するためのキットです。
-OCI Generative AI の OpenAI-compatible API を使う前提にしています。
+この版は、会話の中でうまく動いていた流れに戻したものです。
 
-## 構成
-- control-plane x1
-- worker x3
+## 実行イメージ
+```bash
+export OCI_GENAI_API_KEY="$(printf %s '...' | tr -d '[:space:]')"
+export OPENAI_API_KEY="$OCI_GENAI_API_KEY"
+export OCI_GENAI_REGION="us-chicago-1"
+export OCI_GENAI_MODEL="openai.gpt-oss-120b"
+export OCI_GENAI_BASE_URL="https://inference.generativeai.${OCI_GENAI_REGION}.oci.oraclecloud.com/20231130/actions/v1"
 
-## 含まれるもの
-- `install.md`
-- `kind-config.yaml`
-- `create-kind-cluster.sh`
-- `delete-kind-cluster.sh`
-- `manifests/`
-- `kagent-values-kind.yaml`
+curl -sS "${OCI_GENAI_BASE_URL}/chat/completions"   -H "Authorization: Bearer ${OCI_GENAI_API_KEY}"   -H "Content-Type: application/json"   -d "{"model":"${OCI_GENAI_MODEL}","messages":[{"role":"user","content":"ping"}]}"
 
-## 使い方
-1. `OCI_GENAI_API_KEY` を設定する
-2. `OPENAI_API_KEY` を別途用意する
-3. `./create-kind-cluster.sh` を実行する
+kind get clusters
+
+chmod +x create-kind-cluster.sh delete-kind-cluster.sh
+./create-kind-cluster.sh
+kubectl port-forward -n kagent svc/kagent-ui 8080:8080
+```
+
+## 返却内容
+- create-kind-cluster.sh
+- delete-kind-cluster.sh
+- install.md
+- kind-config.yaml
+- manifests/

@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Standalone demo setup script.
-# This script expects:
-#   - OCI_GENAI_API_KEY : OCI Generative AI OpenAI-compatible key
-#   - OPENAI_API_KEY    : valid OpenAI key (kagent install currently needs it)
-#
-# Do NOT map OCI_GENAI_API_KEY into OPENAI_API_KEY.
-# That causes 401.
-
 CLUSTER_NAME="${CLUSTER_NAME:-kagent-demo}"
 KAGENT_NAMESPACE="${KAGENT_NAMESPACE:-kagent}"
 DEMO_NAMESPACE="${DEMO_NAMESPACE:-demo-app}"
@@ -53,13 +45,9 @@ fi
 
 if [[ -z "${OPENAI_API_KEY:-}" ]]; then
   echo "OPENAI_API_KEY is not set."
-  echo "kagent install currently requires a valid OpenAI key."
   echo "export OPENAI_API_KEY='sk-...'"
   exit 1
 fi
-
-OCI_GENAI_API_KEY="$(printf '%s' "${OCI_GENAI_API_KEY}" | tr -d '[:space:]')"
-export OCI_GENAI_API_KEY
 
 docker ps >/dev/null 2>&1 || { echo "Docker daemon is not running."; exit 1; }
 
@@ -87,7 +75,7 @@ wait_for_crd "modelconfig" 300
 wait_for_crd "agent" 300
 
 echo "[6/8] Create OCI GenAI secret and ModelConfig"
-kubectl -n "${KAGENT_NAMESPACE}" create secret generic kagent-oci-genai       --from-literal=OCI_GENAI_API_KEY="${OCI_GENAI_API_KEY}"       --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n "${KAGENT_NAMESPACE}" create secret generic kagent-oci-genai   --from-literal=OCI_GENAI_API_KEY="${OCI_GENAI_API_KEY}"   --dry-run=client -o yaml | kubectl apply -f -
 
 cat <<EOF | OCI_GENAI_MODEL="${OCI_GENAI_MODEL}" OCI_GENAI_BASE_URL="${OCI_GENAI_BASE_URL}" envsubst | kubectl apply -f -
 apiVersion: kagent.dev/v1alpha2
@@ -161,7 +149,7 @@ spec:
           command: ["sh", "-c", "echo 'intentional crash for demo'; exit 1"]
 EOF
 
-echo "[8/8] Optional Service mismatch demo manifest"
+echo "[8/8] Optional Service mismatch demo manifests"
 kubectl apply -f - <<'EOF'
 apiVersion: v1
 kind: Service

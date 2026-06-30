@@ -1,27 +1,22 @@
-# kagent kind デモキット（rollback）
+# kagent kind デモキット（401回避版）
 
-この版は、会話の中でうまく動いていた流れに戻したものです。
+このキットは、kind 環境とデモ用ワークロードを作るためのものです。
+OpenAI / OCI GenAI への API 呼び出しは行いません。
 
-## 実行イメージ
-```bash
-export OCI_GENAI_API_KEY="$(printf %s '...' | tr -d '[:space:]')"
-export OPENAI_API_KEY="$OCI_GENAI_API_KEY"
-export OCI_GENAI_REGION="us-chicago-1"
-export OCI_GENAI_MODEL="openai.gpt-oss-120b"
-export OCI_GENAI_BASE_URL="https://inference.generativeai.${OCI_GENAI_REGION}.oci.oraclecloud.com/20231130/actions/v1"
+## 含まれるもの
+- `install.md`
+- `kind-config.yaml`
+- `create-kind-cluster.sh`
+- `delete-kind-cluster.sh`
+- `manifests/`
 
-curl -sS "${OCI_GENAI_BASE_URL}/chat/completions"   -H "Authorization: Bearer ${OCI_GENAI_API_KEY}"   -H "Content-Type: application/json"   -d "{"model":"${OCI_GENAI_MODEL}","messages":[{"role":"user","content":"ping"}]}"
+## できること
+- kind クラスタ作成
+- demo namespace 作成
+- demo-web / demo-crashloop のデプロイ
+- Service selector mismatch のデモ
 
-kind get clusters
-
-chmod +x create-kind-cluster.sh delete-kind-cluster.sh
-./create-kind-cluster.sh
-kubectl port-forward -n kagent svc/kagent-ui 8080:8080
-```
-
-## 返却内容
-- create-kind-cluster.sh
-- delete-kind-cluster.sh
-- install.md
-- kind-config.yaml
-- manifests/
+## しないこと
+- OpenAI API 呼び出し
+- OCI GenAI API 呼び出し
+- kagent install

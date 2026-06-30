@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-cpu-burn
+  namespace: demo-app
+  labels:
+    app: demo-cpu-burn
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-cpu-burn
+  template:
+    metadata:
+      labels:
+        app: demo-cpu-burn
+    spec:
+      containers:
+        - name: burn
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "starting cpu burn demo";
+              while true; do
+                sha1sum /dev/zero >/dev/null 2>&1
+              done
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "64Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true

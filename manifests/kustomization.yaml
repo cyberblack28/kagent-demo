@@ -1,6 +1,7 @@
+# ベースライン構成のみを束ねる。
+# 30(service-mismatch)と 31(service-restore)は同じ Service を逆向きに定義する“障害注入/復旧”用で、
+# 同時適用すると競合するため、ここには含めず demo 中に個別 apply する。
 resources:
   - 00-namespaces.yaml
   - 10-demo-app.yaml
   - 20-demo-fault-crashloop.yaml
-  - 30-demo-service-mismatch.yaml
-  - 31-demo-service-restore.yaml

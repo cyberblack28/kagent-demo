@@ -1,0 +1,37 @@
+# OCI Generative AI (OpenAI 互換エンドポイント) を kagent のモデルとして登録する。
+#
+# ポイント:
+#   provider は "OpenAI" のまま、openAI.baseUrl で OCI のエンドポイントに切り替える。
+#   apiKeySecret / apiKeySecretKey は、別途作成する Secret(kagent-oci-genai)を指す。
+#   baseUrl は末尾スラッシュを付けない(SDK が /chat/completions を自動付与するため)。
+#
+# モデル名とエンドポイントは create-kind-cluster.sh から envsubst で注入する。
+---
+# (1) demo プロファイルが作る既定 ModelConfig を「上書き」する。
+#     同梱エージェントは default-model-config を参照するので、これで一括して OCI を向く。
+apiVersion: kagent.dev/v1alpha2
+kind: ModelConfig
+metadata:
+  name: default-model-config
+  namespace: kagent
+spec:
+  provider: OpenAI
+  model: ${OCI_GENAI_MODEL}
+  apiKeySecret: kagent-oci-genai
+  apiKeySecretKey: OCI_GENAI_API_KEY
+  openAI:
+    baseUrl: "${OCI_GENAI_BASE_URL}"
+---
+# (2) 自作エージェント用に、分かりやすい別名でも同じ設定を用意しておく(任意)。
+apiVersion: kagent.dev/v1alpha2
+kind: ModelConfig
+metadata:
+  name: oci-genai-openai-compatible
+  namespace: kagent
+spec:
+  provider: OpenAI
+  model: ${OCI_GENAI_MODEL}
+  apiKeySecret: kagent-oci-genai
+  apiKeySecretKey: OCI_GENAI_API_KEY
+  openAI:
+    baseUrl: "${OCI_GENAI_BASE_URL}"

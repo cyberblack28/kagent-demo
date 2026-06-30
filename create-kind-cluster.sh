@@ -1,17 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 復元版: うまくいっていた same-key の流れ
-# OCI_GENAI_API_KEY を OPENAI_API_KEY に流用する。
-# 当時の挙動を再現するため、ここではそのままにしている。
+# kagent を kind 上に構築し、OCI Generative AI(OpenAI 互換)をモデルとして使う。
+#
+# 重要な前提(なぜ 401 が出ていたか):
+#   `kagent install --profile demo` は default-model-config という名前の ModelConfig
+#   (provider OpenAI / baseUrl 未指定 = api.openai.com)と、それを参照する同梱エージェントを入れる。
+#   OCI 用 ModelConfig を別名で作っても、エージェントは default-model-config を使い続けるため、
+#   OCI のキーを OpenAI 本家に投げて 401 になる。
+#   → 対策: default-model-config 自体を OCI 設定で上書きし、念のため各エージェントも向け直す。
 
 CLUSTER_NAME="${CLUSTER_NAME:-kagent-demo}"
 KAGENT_NAMESPACE="${KAGENT_NAMESPACE:-kagent}"
 DEMO_NAMESPACE="${DEMO_NAMESPACE:-demo-app}"
+KAGENT_PROFILE="${KAGENT_PROFILE:-demo}"
 OCI_GENAI_REGION="${OCI_GENAI_REGION:-us-chicago-1}"
 OCI_GENAI_MODEL="${OCI_GENAI_MODEL:-openai.gpt-oss-120b}"
-KAGENT_PROFILE="${KAGENT_PROFILE:-demo}"
+# 末尾スラッシュは付けない(OpenAI SDK が /chat/completions を自動付与する)。
 OCI_GENAI_BASE_URL="${OCI_GENAI_BASE_URL:-https://inference.generativeai.${OCI_GENAI_REGION}.oci.oraclecloud.com/20231130/actions/v1}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 wait_for_crd() {
   local pattern="$1"
@@ -47,14 +55,16 @@ if [[ -z "${OCI_GENAI_API_KEY:-}" ]]; then
   exit 1
 fi
 
-# legacy same-key behavior
+# kagent インストーラが既定 Secret を作る際に OPENAI_API_KEY を要求することがあるため、
+# 値を入れておく。ただしエージェントが実際に使うのは下で作る kagent-oci-genai Secret であり、
+# default-model-config を OCI で上書きするので、この値が OpenAI 本家に使われることはない。
 export OPENAI_API_KEY="${OPENAI_API_KEY:-${OCI_GENAI_API_KEY}}"
 
 docker ps >/dev/null 2>&1 || { echo "Docker daemon is not running."; exit 1; }
 
 echo "[1/8] Create kind cluster"
 if ! kind get clusters | grep -qx "${CLUSTER_NAME}"; then
-  kind create cluster --name "${CLUSTER_NAME}" --config kind-config.yaml
+  kind create cluster --name "${CLUSTER_NAME}" --config "${SCRIPT_DIR}/kind-config.yaml"
 else
   echo "Cluster already exists: ${CLUSTER_NAME}"
 fi
@@ -68,7 +78,7 @@ if ! command -v kagent >/dev/null 2>&1; then
   curl https://raw.githubusercontent.com/kagent-dev/kagent/refs/heads/main/scripts/get-kagent | bash
 fi
 
-echo "[4/8] Install kagent"
+echo "[4/8] Install kagent (profile: ${KAGENT_PROFILE})"
 kagent install --profile "${KAGENT_PROFILE}"
 
 echo "[5/8] Wait for CRDs"
@@ -76,106 +86,48 @@ wait_for_crd "modelconfig" 300
 wait_for_crd "agent" 300
 
 echo "[6/8] Create OCI GenAI secret and ModelConfig"
-kubectl -n "${KAGENT_NAMESPACE}" create secret generic kagent-oci-genai       --from-literal=OCI_GENAI_API_KEY="${OCI_GENAI_API_KEY}"       --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n "${KAGENT_NAMESPACE}" create secret generic kagent-oci-genai \
+  --from-literal=OCI_GENAI_API_KEY="${OCI_GENAI_API_KEY}" \
+  --dry-run=client -o yaml | kubectl apply -f -
 
-cat <<EOF | OCI_GENAI_MODEL="${OCI_GENAI_MODEL}" OCI_GENAI_BASE_URL="${OCI_GENAI_BASE_URL}" envsubst | kubectl apply -f -
-apiVersion: kagent.dev/v1alpha2
-kind: ModelConfig
-metadata:
-  name: oci-genai-openai-compatible
-  namespace: ${KAGENT_NAMESPACE}
-spec:
-  provider: OpenAI
-  model: ${OCI_GENAI_MODEL}
-  apiKeySecret: kagent-oci-genai
-  apiKeySecretKey: OCI_GENAI_API_KEY
-  openAI:
-    baseUrl: "${OCI_GENAI_BASE_URL}"
-EOF
+# default-model-config を OCI 設定で上書きし、別名 ModelConfig も用意する。
+OCI_GENAI_MODEL="${OCI_GENAI_MODEL}" OCI_GENAI_BASE_URL="${OCI_GENAI_BASE_URL}" \
+  envsubst < "${SCRIPT_DIR}/manifests/01-modelconfig-oci.yaml" | kubectl apply -f -
 
-echo "[7/8] Deploy demo apps"
-kubectl apply -f - <<'EOF'
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: demo-web
-  namespace: demo-app
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: demo-web
-  template:
-    metadata:
-      labels:
-        app: demo-web
-    spec:
-      containers:
-        - name: web
-          image: nginx:1.27
-          ports:
-            - containerPort: 80
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: demo-web
-  namespace: demo-app
-spec:
-  selector:
-    app: demo-web
-  ports:
-    - port: 80
-      targetPort: 80
-  type: ClusterIP
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: demo-crashloop
-  namespace: demo-app
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: demo-crashloop
-  template:
-    metadata:
-      labels:
-        app: demo-crashloop
-    spec:
-      containers:
-        - name: crash
-          image: busybox:1.36
-          command: ["sh", "-c", "echo 'intentional crash for demo'; exit 1"]
-EOF
+echo "[7/8] Point bundled agents at the OCI model and reload"
+# 既定名(default-model-config)の上書きで通常は十分だが、バージョン差異に備えて
+# 既存エージェントを明示的に OCI 用 ModelConfig へ向け直す(宣言的エージェントのみ・失敗は無視)。
+for a in $(kubectl -n "${KAGENT_NAMESPACE}" get agents.kagent.dev -o name 2>/dev/null || true); do
+  kubectl -n "${KAGENT_NAMESPACE}" patch "$a" --type=merge \
+    -p '{"spec":{"declarative":{"modelConfig":"oci-genai-openai-compatible"}}}' >/dev/null 2>&1 || true
+done
+# モデル設定の変更を Pod に反映させるため再起動する。
+kubectl -n "${KAGENT_NAMESPACE}" rollout restart deploy >/dev/null 2>&1 || true
+kubectl -n "${KAGENT_NAMESPACE}" rollout status deploy --timeout=180s >/dev/null 2>&1 || true
 
-echo "[8/8] Optional Service mismatch demo manifests"
-kubectl apply -f - <<'EOF'
-apiVersion: v1
-kind: Service
-metadata:
-  name: demo-web
-  namespace: demo-app
-spec:
-  selector:
-    app: demo-web-mismatch
-  ports:
-    - port: 80
-      targetPort: 80
-  type: ClusterIP
-EOF
+echo "[8/8] Deploy demo app (healthy baseline + crashloop fault for Demo 2)"
+# ベースラインの healthy アプリと、自己修復デモ用の crashloop を投入する。
+# Service mismatch(30)/restore(31)は“その場で壊す/直す”ためのものなので、ここでは適用しない。
+kubectl apply -f "${SCRIPT_DIR}/manifests/10-demo-app.yaml"
+kubectl apply -f "${SCRIPT_DIR}/manifests/20-demo-fault-crashloop.yaml"
 
 cat <<EOF
 
 Done.
 
-Verify:
+確認:
   kubectl get pods -n ${KAGENT_NAMESPACE}
   kubectl get pods -n ${DEMO_NAMESPACE}
   kubectl get modelconfig -n ${KAGENT_NAMESPACE}
-  kagent dashboard
+  kubectl -n ${KAGENT_NAMESPACE} get modelconfig default-model-config -o yaml | grep -A3 openAI
 
-To restore Service selector:
-  kubectl apply -f manifests/31-demo-service-restore.yaml
+UI:
+  kubectl port-forward -n ${KAGENT_NAMESPACE} svc/kagent-ui 8080:8080
+  # もしくは: kagent dashboard
+
+デモ中の障害注入(その場で):
+  # サービスのセレクタずれを起こす
+  kubectl apply -f ${SCRIPT_DIR}/manifests/30-demo-service-mismatch.yaml
+  # 直す
+  kubectl apply -f ${SCRIPT_DIR}/manifests/31-demo-service-restore.yaml
 EOF

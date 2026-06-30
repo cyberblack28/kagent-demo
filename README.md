@@ -1,15 +1,9 @@
-# kagent kind デモキット（install 分離版）
+# kagent kind デモキット（復元版）
 
-このキットは、OCI GenAI の接続確認と kagent install を分離した版です。
-`OCI_GENAI_API_KEY` を OpenAI のキーに流用しないことで、401 を避けやすくしています。
+会話の中でうまく動いていた状態に戻した版です。
+`OCI_GENAI_API_KEY` を `OPENAI_API_KEY` に流し込む、当時の same-key フローを再現しています。
 
-## 必須
-- `OCI_GENAI_API_KEY` : OCI GenAI 用
-- `OPENAI_API_KEY` : kagent install 用（OCI と同じ値にしない）
-
-## 含まれるもの
-- `install.md`
-- `kind-config.yaml`
-- `create-kind-cluster.sh`
-- `delete-kind-cluster.sh`
-- `manifests/`
+## 使い方
+1. OCI GenAI のキーを設定する
+2. その同じ値を `OPENAI_API_KEY` に入れる
+3. `create-kind-cluster.sh` を実行する

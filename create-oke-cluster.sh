@@ -76,8 +76,15 @@ kubectl create namespace "${KAGENT_NAMESPACE}" --dry-run=client -o yaml | kubect
 kubectl create namespace "${DEMO_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
 echo "[2/8] Install kagent CLI if needed"
+# OCI Cloud Shell など sudo が使えない環境でも動くように、
+# --no-sudo で $HOME/bin にインストールする(sudo が使える環境でも無害)。
+# PATH への追加はインストールより前に行う。後続の kagent install が
+# 同一シェル内で kagent コマンドを解決できるようにするため。
+mkdir -p "${HOME}/bin"
+export PATH="${HOME}/bin:${PATH}"
 if ! command -v kagent >/dev/null 2>&1; then
-  curl https://raw.githubusercontent.com/kagent-dev/kagent/refs/heads/main/scripts/get-kagent | bash
+  curl https://raw.githubusercontent.com/kagent-dev/kagent/refs/heads/main/scripts/get-kagent \
+    | bash -s -- --no-sudo
 fi
 
 echo "[3/8] Install kagent (profile: ${KAGENT_PROFILE})"

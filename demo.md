@@ -1,15 +1,40 @@
-# kagent デモ台本
+# kagent デモ台本(k8s-agent 版)
 
-このファイルは、**デモ1（CrashLoopBackOff の原因調査と修復）**、  
-**デモ2（Service と Pod のつながり確認）**、  
-**デモ3（k8s-agent → observability-agent / promql-agent）** を、コピペしながら進めるための台本です。
+このファイルは、**すべて k8s-agent だけ**で完結する3本のデモを、
+コピペしながら進めるための台本です。
+
+- **デモ1: CrashLoopBackOff の原因調査と修復**
+- **デモ2: ImagePullBackOff の原因調査と修復**
+- **デモ3: Service と Pod のつながり確認(複数リソースをまたいだ推論)**
+- **デモ4: 自作エージェントを UI から作る(運用の標準化)**
+
+3本とも「Kubernetes オブジェクトを跨いで原因を推論できるか」を見せる点は共通ですが、
+障害の見た目・原因の種類をあえて変えることで、単調にならないようにしています。
+デモ4は視点を変えて、「エージェントを使う」から「エージェントを設計する」への
+ステップアップを見せます。発表タイトルの「運用を標準化する」の回収パートです。
+
+| デモ | 障害の見え方 | kagent が読むもの |
+|---|---|---|
+| 1 | Pod が再起動を繰り返す | Pod の exit code / ログ |
+| 2 | Pod が起動すらしない | Pod の Event(イメージ取得エラー) |
+| 3 | Pod は動いているのに繋がらない | Service / Endpoints / Pod label の関係 |
+| 4 | (障害ではなく) 運用ルールをエージェント化 | システムプロンプト+ツール選択 |
+
+## 進め方の方針
+
+- **修復はすべてチャットでエージェントに指示する**。登壇者が kubectl で直す場面は作らない
+- 登壇者がコマンドを打つのは次の2つだけ:
+  - **障害の注入**(わざと壊すのは人間の仕込みとして行う)
+  - **修復後の事実確認**(エージェントの報告を鵜呑みにせず裏取りする姿勢を見せる)
+- 各所の「参考: 手動で行う場合」のコマンドは、エージェントが実行する内容の
+  理解用+デモが滞った場合の保険として残してある
 
 前提:
-- `create-kind-cluster.sh` で環境構築済み
+- `create-kind-cluster.sh`(または OKE 版)で環境構築済み
 - `kagent` UI に `kubectl port-forward -n kagent svc/kagent-ui 8080:8080` でアクセス済み
 - `demo-app` namespace に `demo-web` と `demo-crashloop` が存在する
 - `manifests/30-demo-service-mismatch.yaml` と `manifests/31-demo-service-restore.yaml` がある
-- `manifests/40-promql-cpu-burn.yaml` がある
+- `manifests/40-demo-imagepull.yaml` がある(ImagePullBackOff 用、新規)
 
 ---
 
@@ -51,40 +76,127 @@ describe, events, logs を確認して、なぜ落ちているかを要約して
 - 単に落ちていることではなく、**なぜ落ちているかを短時間で要約できるか**を見る
 - `exit 1` が原因だと分かれば成功
 
-## 3. 修復する
+## 3. チャットで修復させる
 
-### 修復コマンド
+原因の要約が返ってきたら、そのまま同じセッションで修復まで指示する。
+
+### 画面で入力する依頼文
+```text
+原因は分かりました。demo-crashloop Deployment のコンテナの command を
+"sleep infinity" に変更して、修復してください。
+修復後、Pod が Running になったことも確認して報告してください。
+```
+
+### 話すこと
+- 調査と修復が**同じチャットの流れの中で**完結する
+- エージェントが patch を実行し、rollout の結果まで自分で確認して報告する
+- 人間は「何をするか」を決め、実行はエージェントに任せる、という分担
+
+### 参考: 手動で行う場合のコマンド(エージェントが実行する内容と同等)
 ```bash
 kubectl patch deployment demo-crashloop -n demo-app --type='json' -p='[
   {"op":"replace","path":"/spec/template/spec/containers/0/command","value":["sh","-c","sleep infinity"]}
 ]'
+kubectl rollout status deployment/demo-crashloop -n demo-app
 ```
 
-### 再確認
+## 4. 修復後の確認
+
+エージェントの報告を受けたら、裏取りとして手元でも確認して見せる。
+(「AI の報告を鵜呑みにせず、事実で確認する」姿勢を見せる意図)
+
 ```bash
-kubectl rollout status deployment/demo-crashloop -n demo-app
-kubectl get pods -n demo-app -l app=demo-crashloop -w
+kubectl get pods -n demo-app -l app=demo-crashloop
 ```
 
 ### 話すこと
-- コマンドを `sleep infinity` に変えた
-- 再起動後に `Running` に戻れば復旧成功
-- 「原因調査」から「修復」までを一気通貫で見せる
+- もう `CrashLoopBackOff` ではない。エージェントの報告と実際の状態が一致している
+- 調査 → 修復 → 確認までチャットだけで完結し、最後に人間が事実確認する型
+
+---
+
+# デモ2: ImagePullBackOff の原因調査と修復
+
+CrashLoopBackOff とは違い、**コンテナが一度も起動しない**障害です。
+「壊れたコードが動いて落ちる」のではなく「そもそも取ってこられない」ことを
+kagent が Event から読み取れるかを見せます。運用現場での発生頻度が高く、
+観客にも馴染みのある障害なので、CrashLoopBackOff との対比として効果的です。
+
+## 0. 障害を注入する
+
+```bash
+kubectl apply -f manifests/40-demo-imagepull.yaml
+kubectl get pods -n demo-app -l app=demo-imagepull -w
+```
+
+### 話すこと
+- `demo-imagepull` は存在しないイメージタグを指定してある
+- Pod が `ContainerCreating` のまま止まり、やがて `ImagePullBackOff` になる
+- CrashLoopBackOff と違い、**コンテナは一度も起動していない**点がポイント
+
+## 1. 現状確認
+
+```bash
+kubectl get pods -n demo-app -l app=demo-imagepull
+kubectl describe pod -n demo-app -l app=demo-imagepull
+```
+
+### 話すこと
+- `describe` の Events に `Failed to pull image` 系のメッセージが出ている
+- ログではなく Event を見る必要がある障害だと気づいてほしい
+
+## 2. kagent に原因を調べさせる
+
+### 画面で入力する依頼文
+```text
+demo-app namespace の demo-imagepull Pod が起動しません。
+Events を確認して、なぜ起動できないのかを要約してください。
+```
+
+### 話すこと
+- ログが空でも、Event から原因を引き出せるかを見る
+- 「イメージタグが存在しない」まで具体的に言い当てられれば成功
+- CrashLoopBackOff(ログ起因)と ImagePullBackOff(Event起因)で、
+  kagent が見る情報源を自分で切り替えている点に注目してほしい
+
+## 3. チャットで修復させる
+
+### 画面で入力する依頼文
+```text
+原因は存在しないイメージタグですね。
+demo-imagepull Deployment のイメージを nginx:1.27-alpine に変更して修復し、
+Pod が Running になったことを確認して報告してください。
+```
+
+### 話すこと
+- デモ1と同じく、調査の会話の延長で修復まで指示する
+- `ImagePullBackOff` から `Running` に変わったという報告が返る
+- 障害の種類が違っても「調べて → 直して」という対話の型は同じ
+
+### 参考: 手動で行う場合のコマンド(エージェントが実行する内容と同等)
+```bash
+kubectl set image deployment/demo-imagepull -n demo-app \
+  demo-imagepull=nginx:1.27-alpine
+kubectl rollout status deployment/demo-imagepull -n demo-app
+```
 
 ## 4. 修復後の確認
 
 ```bash
-kubectl get pods -n demo-app -l app=demo-crashloop
-kubectl describe pod -n demo-app -l app=demo-crashloop
+kubectl get pods -n demo-app -l app=demo-imagepull
 ```
 
 ### 話すこと
-- もう `CrashLoopBackOff` ではない
-- 再起動回数が止まっていればよい
+- Pod が正常に起動し、Restarts も 0 のままであることを事実確認する
 
 ---
 
-# デモ2: Service と Pod のつながりを確認するデモ
+# デモ3: Service と Pod のつながりを確認するデモ
+
+デモ1・2は「1つの Pod の中で何が起きているか」でしたが、
+このデモは**複数リソースをまたいだ関係**を kagent が読み解けるかを見せます。
+Pod 自体は正常なのに繋がらない、という運用でありがちな地味な障害を、
+kagent が Service / Endpoints / Pod label を突き合わせて説明できるかがポイントです。
 
 ## 1. 正常系の確認
 
@@ -102,13 +214,9 @@ kubectl describe svc -n demo-app demo-web
 
 ## 2. わざと不整合を作る
 
-まず、`30-demo-service-mismatch.yaml` を適用して Service の selector をずらします。
-
 ```bash
 kubectl apply -f manifests/30-demo-service-mismatch.yaml
 ```
-
-そのあと、endpoint が消えていることを確認します。
 
 ```bash
 kubectl get endpoints -n demo-app demo-web
@@ -119,7 +227,8 @@ kubectl get pods -n demo-app -o wide
 ### 話すこと
 - Service の selector をずらして、不整合を意図的に作る
 - Pod は動いているのに Service から届かない状態にする
-- Kubernetes ではこういう「つながりのズレ」が運用上よくある
+- ログやイベントには何も出ない「見えない障害」であることを強調する
+  (だからこそ、人手で見つけにくく、kagent の見どころになる)
 
 ## 3. kagent に調べさせる
 
@@ -132,93 +241,163 @@ Service selector, Pod label, endpoints の観点で確認してください。
 ### 話すこと
 - Pod 単体ではなく、Service / Deployment / Pod の関係を見たい
 - selector の不一致や endpoint 不在を見抜けるかを確認する
+- デモ1・2が「単一オブジェクトの原因調査」なら、これは「関係性の調査」
 
-## 4. 元に戻す
+## 4. チャットで復旧させる
 
-次に、`31-demo-service-restore.yaml` を適用して復旧します。
-
-```bash
-kubectl apply -f manifests/31-demo-service-restore.yaml
+### 画面で入力する依頼文
+```text
+selector の不一致が原因ですね。
+demo-web Service の selector を、実際に稼働している Pod のラベルに合わせて
+修正してください。修正後、endpoints に Pod が復帰したことを確認して
+報告してください。
 ```
 
-復旧確認をします。
+### 話すこと
+- **修正内容を具体的に指示していない**点がデモ1・2との違い。
+  「Pod のラベルに合わせて」という意図だけ伝え、正しい値の特定は
+  エージェント自身にやらせる
+- Service / Pod / Endpoints を跨いだ「関係の修復」ができることを見せる
+- endpoints 復帰の報告が返れば復旧成功
+
+### 参考: 手動で行う場合(保険としてもこれを使う)
+```bash
+kubectl apply -f manifests/31-demo-service-restore.yaml
+kubectl get endpoints -n demo-app demo-web
+```
+
+## 5. 修復後の確認
 
 ```bash
 kubectl get endpoints -n demo-app demo-web
 kubectl describe svc -n demo-app demo-web
-kubectl get pods -n demo-app -o wide
 ```
 
 ### 話すこと
-- selector を元に戻す
-- endpoint が復活すれば復旧成功
-- つながりの確認と復旧をセットで見せる
+- endpoint が復活していることを事実確認する
+- つながりの調査 → 復旧 → 確認まで、チャットの対話で一巡した
 
 ---
 
-# デモ3: k8s-agent → observability-agent / promql-agent
+# デモ4: 自作エージェントを UI から作る(運用の標準化)
 
-このデモは、**k8s-agent で「何が起きているか」を整理し、  
-observability-agent / promql-agent で「本当にそうか」をメトリクスで裏取りする** 流れです。
+デモ1〜3は「用意されたエージェントを使う」でしたが、ここでは
+**自分の運用ルールを持ったエージェントを、UI からその場で作ります**。
+作るのは「demo-app 専属・読み取り専用の調査エージェント」です。
 
-## 0. 追加 workload を入れる
+見せたいポイントは3つ:
+- エージェント = システムプロンプト + モデル + ツール選択、という構造(スライドの再現)
+- **ツールを読み取り系に絞る = 権限設計**。エージェントに「できないこと」を作れる
+- 報告フォーマットの固定 = 属人化しがちな障害報告の**標準化**
 
-PromQL デモ用に CPU を少し使う workload を入れます。
+## 1. UI からエージェントを作成する
+
+kagent UI → Agents → **New Agent** で以下を入力する。
+
+- **Name**: `demo-app-inspector`
+- **Description**: `demo-app namespace 専属の読み取り専用調査エージェント`
+- **Model**: `oci-genai-openai-compatible` を選択
+  (ここで「モデルも差し替え可能。今日は OCI Generative AI」と一言添える)
+- **Instructions (システムプロンプト)**: 下記をコピペ
+
+```text
+あなたは demo-app namespace 専属の Kubernetes 調査エージェントです。
+
+ルール:
+- 調査対象は demo-app namespace のみ。他の namespace は調査しない。
+- get / describe / logs / events による調査のみを行う。
+- リソースの変更(apply, patch, delete, scale)は絶対に実行しない。
+  修復が必要な場合は、実行すべきコマンドを提案として提示するに留める。
+- 回答は必ず日本語で、以下のフォーマットで報告する:
+
+【状況】いま何が起きているか(1-2行)
+【原因】なぜ起きているか(根拠となるログ・イベントを添えて)
+【推奨アクション】実行すべきコマンドと、その効果
+```
+
+- **Tools**: kagent-tools のツール一覧から**読み取り系のみ**を選択する
+  (get / describe / logs / events 系。apply / patch / delete / scale 系は選択しない)
+
+作成すると、エージェントが Kubernetes 上にデプロイされる。
+
+### 話すこと
+- いま YAML を1行も書いていない。UI の入力がそのまま Agent リソースになる
+- ツールを選ばなかった操作は、このエージェントには**物理的にできない**
+- 「するな」とプロンプトで頼むのではなく、能力自体を与えないのが権限設計
+
+## 2. デプロイされたことを確認する
 
 ```bash
-kubectl apply -f manifests/40-promql-cpu-burn.yaml
-kubectl get pods -n demo-app -l app=demo-cpu-burn -w
+kubectl get agents.kagent.dev -n kagent
+kubectl get pods -n kagent | grep demo-app-inspector
 ```
 
 ### 話すこと
-- `demo-cpu-burn` は軽い CPU 負荷を出すだけの簡単な Pod
-- observability / promql のデモで、メトリクスを見る対象にする
+- UI で作ったエージェントが Agent リソース + Pod として稼働している
+- kubectl で見える = 普段の Kubernetes 運用の延長で管理できる
+- GitOps に乗せるなら、この Agent リソースを YAML としてリポジトリ管理すればよい
 
-## 1. まずは k8s-agent に全体像を聞く
+## 3. 同じ質問を、k8s-agent と自作エージェントに投げ比べる
 
-### 画面で入力する依頼文
+事前に障害を仕込み直す(デモ1で修復済みのため):
+
+```bash
+kubectl apply -f manifests/20-demo-fault-crashloop.yaml
+```
+
+### 画面で入力する依頼文(両エージェントに同じ文面・それぞれ新しいセッションで)
 ```text
-demo-app namespace の状態を調べてください。
-CrashLoopBackOff の Pod、Service の endpoint、CPU を使っている Pod を含めて整理してください。
+demo-app namespace で問題のある Pod を調べて、対応方法を教えてください。
 ```
 
 ### 話すこと
-- まず k8s-agent に全体像を要約させる
-- 単発の障害だけでなく、namespace 全体の状態を見せる
-- 「どこが気になるか」を短時間で返せるのがポイント
+- k8s-agent: 汎用的で丁寧だが、形式は毎回変わる
+- demo-app-inspector: 必ず【状況】【原因】【推奨アクション】の型で返る
+- **誰が聞いても同じ型の報告が返る = 運用の標準化**。
+  チームの障害報告テンプレートをエージェントに埋め込んだのと同じこと
 
-## 2. observability-agent / promql-agent で裏取りする
+## 4. 読み取り専用の縛りを確認する(ダメ押し)
 
-### 画面で入力する依頼文
+### 画面で入力する依頼文(demo-app-inspector に)
 ```text
-demo-app namespace で気になる Pod や Service の状態を、メトリクス観点で確認してください。
-再起動回数、Ready 状態、endpoint の有無、CPU 使用傾向など、運用上の判断材料をまとめてください。
+では、その Pod を直してください。
 ```
 
 ### 話すこと
-- `k8s-agent` の要約を、observability の観点で確認する
-- `promql-agent` でメトリクスの見方を補助してもらう
-- `demo-cpu-burn` を使うと、CPU 使用傾向の話がしやすい
-- 「なぜその Pod を気にするのか」をメトリクスで説明できると強い
+- 修復コマンドの「提案」は返すが、実行はしない(できない)
+- 本番クラスタに導入するとき、この設計ができるかどうかが安心感の分かれ目
+- 「調査は AI に任せ、変更は人間が承認して実行する」という運用の型を作れる
 
-## 3. 使い分けの見せ方
+## 補足(リハーサル時の保険)
 
-### 話すこと
-- `k8s-agent` は **Kubernetes オブジェクトの関係を読む**
-- `observability-agent` / `promql-agent` は **状態をメトリクスで裏取りする**
-- 2つを組み合わせると、**原因の切り分けと優先度付け** がやりやすい
+UI での作成が本番で滞った場合に備え、リハーサルで一度作成した後に
+YAML をエクスポートしておく:
+
+```bash
+kubectl get agents.kagent.dev demo-app-inspector -n kagent -o yaml \
+  > manifests/60-demo-custom-agent-backup.yaml
+```
+
+本番で UI 操作に手間取ったら `kubectl apply -f` で即座に同じエージェントを
+再現できる(このバックアップ自体が「エージェントはただの Kubernetes
+リソース」という主張の証明にもなる)。
 
 ---
 
 # デモの締め
 
 ### 話すこと
-- デモ1では、障害の原因特定と修復を見せる
-- デモ2では、Service / Pod / Deployment の関係を見せる
-- デモ3では、k8s-agent と observability 系 agent の役割分担を見せる
-- kagent は単なる障害調査ではなく、Kubernetes の構造理解と運用判断を支援できる
+- デモ1では、ログから原因を特定し、チャットの指示だけで修復する流れを見せる
+- デモ2では、ログではなく Event から原因を特定し、同じ対話の型で修復する
+- デモ3では、複数リソースの関係を読み解かせ、意図だけ伝えて修復させる
+- デモ4では、運用ルールを持った自作エージェントを UI から数分で作れることを見せる
+- 一連を通して、登壇者は一度も修復コマンドを打っていない。
+  人間の役割は「意図の指示」と「結果の事実確認」に変わる
 
 ### 追加で言うとよい一言
 ```text
-この3本を通して、kagent は単発の障害対応だけでなく、Kubernetes のオブジェクト関係とメトリクスを見ながら運用判断を支援できることが分かります。
+今日のデモで、私は障害を仕込むコマンドと確認コマンドしか打っていません。
+調査も修復も、すべてチャットの対話でエージェントが行いました。
+そしてデモ4のとおり、その振る舞い自体をチームのルールとして設計できる。
+これが「kagent で Kubernetes 運用を標準化する」ということです。
 ```

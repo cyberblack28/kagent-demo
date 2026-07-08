@@ -5,7 +5,7 @@ set -uo pipefail
 
 # OKE cleanup:
 # create-oke-cluster.sh が作ったものを逆順で削除する。
-#   - demo workloads (10/20/30/31/40 番台マニフェスト)
+#   - demo workloads (10/20/30/40/41 番台マニフェスト)
 #   - kagent の CR (agents / modelconfigs / toolservers)  ※CRD削除前に消す
 #   - helm release: kagent (UI が LoadBalancer の場合、OCI LB もここで消える)
 #   - helm release: kagent-crds
@@ -39,9 +39,9 @@ kubectl get nodes >/dev/null 2>&1 || {
 
 echo "[1/6] Delete demo workloads"
 for f in \
-  "${SCRIPT_DIR}/manifests/40-demo-imagepull.yaml" \
-  "${SCRIPT_DIR}/manifests/31-demo-service-restore.yaml" \
-  "${SCRIPT_DIR}/manifests/30-demo-service-mismatch.yaml" \
+  "${SCRIPT_DIR}/manifests/41-demo-service-restore.yaml" \
+  "${SCRIPT_DIR}/manifests/40-demo-service-mismatch.yaml" \
+  "${SCRIPT_DIR}/manifests/30-demo-imagepull.yaml" \
   "${SCRIPT_DIR}/manifests/20-demo-fault-crashloop.yaml" \
   "${SCRIPT_DIR}/manifests/10-demo-app.yaml"; do
   if [[ -f "${f}" ]]; then

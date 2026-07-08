@@ -242,7 +242,11 @@ UI:
   # → http://<EXTERNAL-IP>:8080 にアクセス
 
 デモ中の障害注入(その場で):
-  kubectl apply -f ${SCRIPT_DIR}/manifests/30-demo-service-mismatch.yaml
-  kubectl apply -f ${SCRIPT_DIR}/manifests/31-demo-service-restore.yaml
+  # デモ2: ImagePullBackOff を起こす
+  kubectl apply -f ${SCRIPT_DIR}/manifests/30-demo-imagepull.yaml
+  # デモ3: サービスのセレクタずれを起こす
+  kubectl apply -f ${SCRIPT_DIR}/manifests/40-demo-service-mismatch.yaml
+  # 直す
+  kubectl apply -f ${SCRIPT_DIR}/manifests/41-demo-service-restore.yaml
 
 EOF

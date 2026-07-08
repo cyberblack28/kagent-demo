@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-imagepull
+  namespace: demo-app
+  labels:
+    app: demo-imagepull
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-imagepull
+  template:
+    metadata:
+      labels:
+        app: demo-imagepull
+    spec:
+      containers:
+        - name: demo-imagepull
+          # 存在しないイメージタグを指定して ImagePullBackOff を起こす。
+          # 修復は nginx:1.27-alpine 等の実在タグに差し替える(demo.md デモ2)。
+          image: nginx:this-tag-does-not-exist
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80

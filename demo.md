@@ -33,8 +33,8 @@
 - `create-kind-cluster.sh`(または OKE 版)で環境構築済み
 - `kagent` UI に `kubectl port-forward -n kagent svc/kagent-ui 8080:8080` でアクセス済み
 - `demo-app` namespace に `demo-web` と `demo-crashloop` が存在する
-- `manifests/30-demo-service-mismatch.yaml` と `manifests/31-demo-service-restore.yaml` がある
-- `manifests/40-demo-imagepull.yaml` がある(ImagePullBackOff 用、新規)
+- `manifests/30-demo-imagepull.yaml` がある(ImagePullBackOff 用)
+- `manifests/40-demo-service-mismatch.yaml` と `manifests/41-demo-service-restore.yaml` がある
 
 ---
 
@@ -125,7 +125,7 @@ kagent が Event から読み取れるかを見せます。運用現場での発
 ## 0. 障害を注入する
 
 ```bash
-kubectl apply -f manifests/40-demo-imagepull.yaml
+kubectl apply -f manifests/30-demo-imagepull.yaml
 kubectl get pods -n demo-app -l app=demo-imagepull -w
 ```
 
@@ -215,7 +215,7 @@ kubectl describe svc -n demo-app demo-web
 ## 2. わざと不整合を作る
 
 ```bash
-kubectl apply -f manifests/30-demo-service-mismatch.yaml
+kubectl apply -f manifests/40-demo-service-mismatch.yaml
 ```
 
 ```bash
@@ -262,7 +262,7 @@ demo-web Service の selector を、実際に稼働している Pod のラベル
 
 ### 参考: 手動で行う場合(保険としてもこれを使う)
 ```bash
-kubectl apply -f manifests/31-demo-service-restore.yaml
+kubectl apply -f manifests/41-demo-service-restore.yaml
 kubectl get endpoints -n demo-app demo-web
 ```
 

@@ -332,8 +332,26 @@ kagent UI → Agents → **New Agent** を開き、以下を設定する。
 - **Stream model output** / **Service account (optional)**: 触らない(既定のまま)
 
 ### Tools(ツール)
-- **Add Tools & Agents** を押し、kagent-tools のツール一覧から**読み取り系のみ**を選ぶ
-  (get / describe / logs / events 系。apply / patch / delete / scale 系は選択しない)
+**Add Tools & Agents** を押し、kagent ツールサーバーの一覧から**読み取り系のみ**を選ぶ。
+
+ツールは `kagent-tool-server` の中にある `k8s_*` を使う。
+
+選択する(read-only):
+- `k8s_get_resources` … Pod / Service / Endpoints / Deployment 等の取得(全デモ共通)
+- `k8s_get_resource_yaml` … selector / label を YAML で確認(デモ3)
+- `k8s_describe_resource` … describe 相当(全デモ共通)
+- `k8s_get_events` … Event 確認(デモ2 の ImagePullBackOff)
+- `k8s_get_pod_logs` … Pod ログ(デモ1 の CrashLoop)
+- `k8s_check_service_connectivity` … Service ↔ Pod の疎通確認(デモ3)
+- (任意)`k8s_get_available_api_resources` / `k8s_get_cluster_configuration`
+- (任意)`k8s_generate_resource` … 修復用マニフェストを**生成するだけ**(適用はしない)
+
+選択しない(mutating = 変更系。読み取り専用にするため必ず外す):
+- `k8s_apply_manifest` / `k8s_create_resource` / `k8s_create_resource_from_url`
+- `k8s_patch_resource` / `k8s_patch_status` / `k8s_delete_resource`
+- `k8s_scale` / `k8s_rollout`
+- `k8s_label_resource` / `k8s_remove_label` / `k8s_annotate_resource` / `k8s_remove_annotation`
+- `k8s_execute_command`(Pod 内でコマンド実行=変更になりうるため外す)
 
 ### その他のセクション(すべて既定のまま)
 - **Long-term memory** / **Context(Event Compaction)** / **Skills** は

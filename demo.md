@@ -292,13 +292,25 @@ kubectl describe svc -n demo-app demo-web
 
 ## 1. UI からエージェントを作成する
 
-kagent UI → Agents → **New Agent** で以下を入力する。
+kagent UI → Agents → **New Agent** を開き、以下を設定する。
 
-- **Name**: `demo-app-inspector`
+### Identity(基本情報)
+- **Agent name**: `demo-app-inspector`
+- **Namespace**: `kagent` を選択する
+  - ModelConfig と Tools は**エージェントと同じ namespace から解決される**。
+    OCI の ModelConfig(`oci-genai-openai-compatible`)も kagent のツールも
+    `kagent` namespace にあるため、ここを `demo-app` にすると
+    モデルもツールも選択肢に出てこない。
+  - 「demo-app 専属」という性格は、エージェントの居場所ではなく、
+    この後の **Instructions と Tools 選択**で表現する。
+- **Agent type**: `Declarative`(モデル+ツール+プロンプトで定義する既定の方式)
+- **ADK runtime**: `Python`(既定のまま)
 - **Description**: `demo-app namespace 専属の読み取り専用調査エージェント`
-- **Model**: `oci-genai-openai-compatible` を選択
-  (ここで「モデルも差し替え可能。今日は OCI Generative AI」と一言添える)
-- **Instructions (システムプロンプト)**: 下記をコピペ
+  - これは**内部メモで、モデルには渡らない**(Internal note only)。
+    実際の振る舞いは次の Instructions で決まる。
+
+### Model & behavior(モデルと振る舞い)
+- **Agent Instructions(システムプロンプト)**: 初期テンプレートを消して下記をコピペ
 
 ```text
 あなたは demo-app namespace 専属の Kubernetes 調査エージェントです。
@@ -315,15 +327,26 @@ kagent UI → Agents → **New Agent** で以下を入力する。
 【推奨アクション】実行すべきコマンドと、その効果
 ```
 
-- **Tools**: kagent-tools のツール一覧から**読み取り系のみ**を選択する
+- **Model**: `oci-genai-openai-compatible` を選択
+  (ここで「モデルも差し替え可能。今日は OCI Generative AI」と一言添える)
+- **Stream model output** / **Service account (optional)**: 触らない(既定のまま)
+
+### Tools(ツール)
+- **Add Tools & Agents** を押し、kagent-tools のツール一覧から**読み取り系のみ**を選ぶ
   (get / describe / logs / events 系。apply / patch / delete / scale 系は選択しない)
 
-作成すると、エージェントが Kubernetes 上にデプロイされる。
+### その他のセクション(すべて既定のまま)
+- **Long-term memory** / **Context(Event Compaction)** / **Skills** は
+  このデモでは使わないため、何も設定しない。
+
+最後に **Create Agent** を押すと、エージェントが Kubernetes 上にデプロイされる。
 
 ### 話すこと
 - いま YAML を1行も書いていない。UI の入力がそのまま Agent リソースになる
 - ツールを選ばなかった操作は、このエージェントには**物理的にできない**
 - 「するな」とプロンプトで頼むのではなく、能力自体を与えないのが権限設計
+- 「調査対象は demo-app」だがエージェント自体は `kagent` に置く。
+  監視対象と、エージェントの居場所は別物、という設計の話も一言添えられる
 
 ## 2. デプロイされたことを確認する
 

@@ -1,0 +1,49 @@
+# デモ5(追加): demo-rollout(Deployment)を Argo Rollouts のカナリアに移行する。
+# 本来はエージェント(argo-rollouts-conversion-agent)にチャットで生成・適用させるが、
+# 本番で生成が滞ったときの「保険」として同等のマニフェストを置いておく。
+#
+# 注意:
+# - 適用前に Deployment demo-rollout(manifests/50-demo-rollout-app.yaml)を
+#   削除しておくこと(同じ app=demo-rollout の Pod を二重に作らないため)。
+# - Service demo-rollout は selector app=demo-rollout のままで、Rollout の Pod に届く。
+# - イメージは quay.io 完全修飾(OKE の short-name 問題を回避)。カナリアは blue -> yellow。
+# - Argo Rollouts コントローラの導入が前提(install-argo-rollouts.md)。
+# - トラフィックルーター無しの basic canary のため、setWeight は replicas に対する
+#   Pod 数で近似される(replicas:4 なら 25%->1, 50%->2, 100%->4)。
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: demo-rollout
+  namespace: demo-app
+  labels:
+    app: demo-rollout
+spec:
+  replicas: 4
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: demo-rollout
+  template:
+    metadata:
+      labels:
+        app: demo-rollout
+    spec:
+      containers:
+        - name: rollouts-demo
+          image: quay.io/argoproj/rollouts-demo:blue
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: "5m"
+              memory: "32Mi"
+            limits:
+              memory: "64Mi"
+  strategy:
+    canary:
+      steps:
+        - setWeight: 25
+        - pause: {}
+        - setWeight: 50
+        - pause: {}
+        # 最後の pause の後に promote すると 100% へ昇格して完了する

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1000 560" width="1000" height="560" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d4t d4d" font-family="ui-sans-serif, system-ui, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif">
+  <title id="d4t">デモ4: 自作エージェントを UI から作る（運用の標準化）</title>
+  <desc id="d4d">kagent UI で demo-app-inspector を作成する。エージェントはシステムプロンプト・モデル・ツールの3要素で定義され、ツールを読み取り系だけに絞ることで変更を物理的に不能にする権限設計と、固定フォーマットによる報告の標準化を実現する。</desc>
+  <defs>
+    <marker id="cP" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#7c3aed"/></marker>
+  </defs>
+  <style>
+    .pnl{fill:#f6f7f9;stroke:#e2e5ea;} .box{fill:#ffffff;stroke:#d7dbe0;}
+    .t1{fill:#1a1d21;font-weight:700;} .t2{fill:#6b7280;} .mono{font-family:ui-monospace,'Cascadia Code',Consolas,monospace;}
+    .ok{fill:#16a34a;font-weight:700;} .mut{fill:#9aa1ab;} .pur{fill:#7c3aed;font-weight:700;}
+    .lnkP{stroke:#7c3aed;stroke-width:2;}
+  </style>
+  <rect x="0" y="0" width="1000" height="560" fill="#ffffff"/>
+
+  <!-- PANEL 1: UIで定義 -->
+  <rect class="pnl" x="18" y="40" width="300" height="430" rx="12"/>
+  <circle cx="44" cy="66" r="12" fill="#7c3aed"/><text x="44" y="70" text-anchor="middle" font-size="13" fill="#fff" font-weight="700">1</text>
+  <text x="66" y="70" font-size="15" class="t1">UI で定義する</text>
+  <text x="168" y="90" text-anchor="middle" font-size="11" class="t2">エージェント = 3 要素</text>
+
+  <rect class="box" x="58" y="98" width="220" height="40" rx="8"/>
+  <text x="72" y="115" font-size="11.5" class="t1">System Prompt</text>
+  <text x="72" y="130" font-size="10.5" class="t2">日本語・固定フォーマット</text>
+
+  <rect class="box" x="58" y="144" width="220" height="40" rx="8"/>
+  <text x="72" y="161" font-size="11.5" class="t1">Model</text>
+  <text x="72" y="176" font-size="10.5" class="t2 mono">oci-genai-openai-compatible</text>
+
+  <rect class="box" x="58" y="190" width="220" height="40" rx="8"/>
+  <text x="72" y="207" font-size="11.5" class="t1">Tools</text>
+  <text x="72" y="222" font-size="10.5" class="t2">読み取り系のみ（k8s_*）</text>
+
+  <line class="lnkP" x1="168" y1="232" x2="168" y2="256" marker-end="url(#cP)"/>
+
+  <rect class="box" x="48" y="258" width="240" height="52" rx="8" stroke="#7c3aed"/>
+  <text x="168" y="279" text-anchor="middle" font-size="13" class="t1">Agent / demo-app-inspector</text>
+  <text x="168" y="297" text-anchor="middle" font-size="11" class="t2">namespace: kagent</text>
+
+  <text x="168" y="345" text-anchor="middle" font-size="12" class="pur">YAML を書かずに作成</text>
+  <text x="168" y="367" text-anchor="middle" font-size="11" class="t2">UI 入力がそのまま Agent リソースに</text>
+
+  <!-- PANEL 2: 権限設計 -->
+  <rect class="pnl" x="350" y="40" width="300" height="430" rx="12"/>
+  <circle cx="376" cy="66" r="12" fill="#7c3aed"/><text x="376" y="70" text-anchor="middle" font-size="13" fill="#fff" font-weight="700">2</text>
+  <text x="398" y="70" font-size="15" class="t1">ツールを絞る = 権限設計</text>
+
+  <text x="368" y="98" font-size="12" class="ok">✓ 選ぶ（read-only）</text>
+  <text x="372" y="118" font-size="10.5" class="t1 mono">k8s_get_resources</text>
+  <text x="372" y="136" font-size="10.5" class="t1 mono">k8s_describe_resource</text>
+  <text x="372" y="154" font-size="10.5" class="t1 mono">k8s_get_pod_logs</text>
+  <text x="372" y="172" font-size="10.5" class="t1 mono">k8s_get_events</text>
+  <text x="372" y="190" font-size="10.5" class="t1 mono">k8s_check_service_connectivity</text>
+  <text x="372" y="208" font-size="10.5" class="t1 mono">k8s_get_resource_yaml</text>
+
+  <line x1="368" y1="222" x2="632" y2="222" stroke="#e2e5ea"/>
+
+  <text x="368" y="244" font-size="12" class="mut">✗ 選ばない（mutating）</text>
+  <text x="372" y="264" font-size="10.5" class="mut mono">apply / create / patch / delete</text>
+  <text x="372" y="282" font-size="10.5" class="mut mono">scale / rollout / label / exec …</text>
+
+  <text x="500" y="330" text-anchor="middle" font-size="12.5" class="pur">選ばなければ物理的にできない</text>
+  <text x="500" y="352" text-anchor="middle" font-size="11" class="t2">「するな」と頼むのではなく能力を与えない</text>
+
+  <!-- PANEL 3: 標準化 -->
+  <rect class="pnl" x="682" y="40" width="300" height="430" rx="12"/>
+  <circle cx="708" cy="66" r="12" fill="#7c3aed"/><text x="708" y="70" text-anchor="middle" font-size="13" fill="#fff" font-weight="700">3</text>
+  <text x="730" y="70" font-size="15" class="t1">報告を標準化する</text>
+
+  <rect class="box" x="712" y="90" width="240" height="104" rx="8" stroke="#16a34a"/>
+  <text x="728" y="110" font-size="10.5" class="t2">固定フォーマット（日本語）</text>
+  <text x="728" y="132" font-size="11.5" class="t1">【状況】いま何が起きているか</text>
+  <text x="728" y="155" font-size="11.5" class="t1">【原因】なぜ（根拠つき）</text>
+  <text x="728" y="178" font-size="11.5" class="t1">【推奨アクション】コマンドと効果</text>
+
+  <text x="728" y="228" font-size="11" class="t2">k8s-agent：</text>
+  <text x="828" y="228" font-size="11" class="t2">形式は毎回変わる</text>
+  <text x="728" y="252" font-size="11" class="t1">inspector：</text>
+  <text x="828" y="252" font-size="11" class="ok">必ず同じ型で返る</text>
+
+  <text x="832" y="330" text-anchor="middle" font-size="12.5" class="pur">誰が聞いても同じ型の報告</text>
+  <text x="832" y="352" text-anchor="middle" font-size="11" class="t2">障害報告テンプレをエージェントに内蔵</text>
+
+  <!-- 凡例 / ポイント -->
+  <rect x="18" y="486" width="964" height="58" rx="10" fill="#f6f7f9" stroke="#e2e5ea"/>
+  <text x="42" y="507" font-size="11.5" class="ok">✓</text><text x="58" y="507" font-size="11.5" class="t2">許可（read-only）</text>
+  <text x="42" y="528" font-size="11.5" class="mut">✗</text><text x="58" y="528" font-size="11.5" class="t2">不許可（mutating）</text>
+  <text x="300" y="511" font-size="12" class="t1">見どころ：</text>
+  <text x="300" y="531" font-size="11.5" class="t2">用意されたエージェントを「使う」から「設計する」へ</text>
+  <text x="740" y="511" font-size="12" class="t1">ねらい：</text>
+  <text x="740" y="531" font-size="11.5" class="t2">権限設計（変更不可）＋ 報告の標準化</text>
+</svg>

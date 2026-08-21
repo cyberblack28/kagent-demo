@@ -425,6 +425,120 @@ kubectl get agents.kagent.dev demo-app-inspector -n kagent -o yaml \
 
 ---
 
+# デモ5(追加): Deployment → Argo Rollouts カナリアへの移行(Ochacafe 向け)
+
+デモ1〜4は「障害を調べて直す」でしたが、これは毛色が違い、
+**「まだ導入していない“進んだリリース手法(カナリア)”を、エージェントに教わりながら入れる」**
+デモです。最後の「昇格(promote)」が、"意図は人間・実行はエージェント" の型を象徴します。
+
+前提: `install-argo-rollouts.md` で Argo Rollouts コントローラと kubectl プラグインを導入済み。
+使うエージェント: kagent UI で `argo-rollouts-conversion-agent` を選ぶ。
+
+## 0. 事前確認(コントローラの導入)
+
+### 画面で入力する依頼文
+```text
+Argo Rollouts のコントローラがこのクラスタに入っているか確認してください。
+```
+
+### 話すこと
+- エージェントが `argo_verify_argo_rollouts_controller_install` で自分で確認する
+- 「まず前提を確かめてから進める」気の利いた動きを見せられる
+
+## 1. 現状確認(普通の Deployment)
+
+```bash
+kubectl get deploy,rollout -n demo-app
+kubectl get pods -n demo-app -l app=demo-web
+```
+
+### 話すこと
+- demo-web は今は普通の Deployment。更新はローリングのみで、段階的な出し方はできない
+
+## 2. Rollout への変換を依頼する
+
+### 画面で入力する依頼文
+```text
+demo-app の demo-web を Argo Rollouts のカナリアに移行してください。
+既存の Deployment は削除し、同じ Pod(nginx, app=demo-web)を管理する Rollout を作成、
+戦略は 25% → 50% → 100% で各ステップの後に pause してください。
+```
+
+### 話すこと
+- Rollout の書き方を知らなくても、対話でカナリアを導入できる = 移行のハードルを肩代わり
+- Service(demo-web)は変えない。selector は app=demo-web のままで、Rollout の Pod に届く
+
+### 参考: 手動で行う場合(保険としてもこれを使う)
+```bash
+kubectl -n demo-app delete deployment demo-web
+kubectl apply -f manifests/50-demo-web-rollout.yaml
+kubectl argo rollouts get rollout demo-web -n demo-app
+```
+
+## 3. カナリアリリースを開始する
+
+別ターミナルで進行を可視化しておく:
+```bash
+kubectl argo rollouts get rollout demo-web -n demo-app --watch
+```
+
+### 画面で入力する依頼文
+```text
+demo-web のイメージを nginx:1.27-alpine に更新して、カナリアを開始してください。
+今どのステップで止まっているかも教えてください。
+```
+
+### 話すこと
+- エージェントが `argo_set_rollout_image` で更新 → 25% カナリアで pause
+- --watch 画面で「新旧の Pod が混在し、一部だけ新バージョン」を見せる
+- ここで一気に全部を替えないのがカナリアの肝
+
+### 参考: 手動で行う場合
+```bash
+kubectl argo rollouts set image demo-web web=nginx:1.27-alpine -n demo-app
+```
+
+## 4. 確認して昇格する(= 承認)
+
+### 画面で入力する依頼文
+```text
+カナリアの状態を確認して、問題なさそうなら次のステップへ昇格してください。
+100% になるまで、各ステップで状態を報告しながら進めてください。
+```
+
+### 話すこと
+- `argo_rollouts_list` で状態確認 → `argo_promote_rollout` で 50% → 100% へ
+- **promote(昇格)＝人間の“承認”**。まさに「意図と承認は人間、実行はエージェント」
+- 段階を踏むので、途中で問題が見えたら止められる(次のダメ押しへ)
+
+### 参考: 手動で行う場合
+```bash
+kubectl argo rollouts promote demo-web -n demo-app
+kubectl argo rollouts status demo-web -n demo-app
+```
+
+## 5.(任意)異常時に巻き戻す
+
+### 画面で入力する依頼文
+```text
+やっぱり新バージョンに問題があります。カナリアを中断して、元に戻してください。
+```
+
+### 話すこと
+- `argo_pause_rollout` で停止 → abort/rollback で安全側へ
+- 「全体に広げる前に気づいて戻せる」= 段階リリースの価値
+
+## 6. 後片付け / 復元
+
+```bash
+kubectl argo rollouts get rollout demo-web -n demo-app   # 100% 完了の確認
+# デモ3 をやり直す場合は Deployment に戻す:
+# kubectl -n demo-app delete rollout demo-web
+# kubectl apply -f manifests/10-demo-app.yaml
+```
+
+---
+
 # デモの締め
 
 ### 話すこと
@@ -434,6 +548,8 @@ kubectl get agents.kagent.dev demo-app-inspector -n kagent -o yaml \
 - デモ4では、運用ルールを持った自作エージェントを UI から数分で作れることを見せる
 - 一連を通して、登壇者は一度も修復コマンドを打っていない。
   人間の役割は「意図の指示」と「結果の事実確認」に変わる
+- (デモ5 を行った場合)調査・修復だけでなく、カナリアのような新しいリリース手法の
+  導入まで任せられる。昇格の「承認」だけ人間が担う、という同じ型が効く
 
 ### 追加で言うとよい一言
 ```text

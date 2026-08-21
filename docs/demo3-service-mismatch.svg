@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1000 560" width="1000" height="560" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d3title d3desc" font-family="ui-sans-serif, system-ui, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif">
+  <title id="d3title">デモ3: Service と Pod のつながり（selector 不整合）</title>
+  <desc id="d3desc">正常時はServiceのselectorがPodのラベルに一致してEndpointsが埋まり通信できる。selectorをapp=demo-web-mismatchに変えると一致するPodが無くEndpointsが空になりPodはRunningでも到達不可。kagentがselectorを修正してEndpointsを復旧する。</desc>
+
+  <defs>
+    <marker id="arrN" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#6b7280"/></marker>
+    <marker id="arrG" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#16a34a"/></marker>
+    <marker id="arrR" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#dc2626"/></marker>
+  </defs>
+
+  <style>
+    .pnl{fill:#f6f7f9;stroke:#e2e5ea;}
+    .box{fill:#ffffff;stroke:#d7dbe0;}
+    .t1{fill:#1a1d21;font-weight:700;}
+    .t2{fill:#6b7280;}
+    .hdr{fill:#1a1d21;font-weight:700;}
+    .ok{fill:#16a34a;font-weight:700;}
+    .bad{fill:#dc2626;font-weight:700;}
+    .lnkG{stroke:#16a34a;stroke-width:2;}
+    .lnkR{stroke:#dc2626;stroke-width:2;stroke-dasharray:5 4;}
+    .lnkN{stroke:#6b7280;stroke-width:2;}
+  </style>
+
+  <rect x="0" y="0" width="1000" height="560" fill="#ffffff"/>
+
+  <!-- ===================== PANEL A: 正常 ===================== -->
+  <g>
+    <rect class="pnl" x="18" y="40" width="300" height="430" rx="12"/>
+    <circle cx="44" cy="66" r="12" fill="#16a34a"/><text x="44" y="70" text-anchor="middle" font-size="13" fill="#fff" font-weight="700">1</text>
+    <text x="66" y="70" font-size="15" class="hdr">正常</text>
+
+    <rect class="box" x="58" y="92" width="220" height="54" rx="8"/>
+    <text x="168" y="114" text-anchor="middle" font-size="14" class="t1">Service / demo-web</text>
+    <text x="168" y="133" text-anchor="middle" font-size="12"><tspan class="t2">selector: </tspan><tspan class="ok">app=demo-web</tspan></text>
+
+    <line class="lnkG" x1="168" y1="146" x2="168" y2="176" marker-end="url(#arrG)"/>
+
+    <rect class="box" x="88" y="179" width="160" height="46" rx="8"/>
+    <text x="168" y="199" text-anchor="middle" font-size="13" class="t1">Endpoints</text>
+    <text x="168" y="216" text-anchor="middle" font-size="12" class="ok">2 addresses ●●</text>
+
+    <line class="lnkG" x1="168" y1="225" x2="168" y2="258" marker-end="url(#arrG)"/>
+
+    <rect class="box" x="64" y="261" width="98" height="50" rx="8"/>
+    <text x="113" y="281" text-anchor="middle" font-size="12" class="t1">Pod</text>
+    <text x="113" y="299" text-anchor="middle" font-size="11" class="t2">app=demo-web</text>
+    <rect class="box" x="174" y="261" width="98" height="50" rx="8"/>
+    <text x="223" y="281" text-anchor="middle" font-size="12" class="t1">Pod</text>
+    <text x="223" y="299" text-anchor="middle" font-size="11" class="t2">app=demo-web</text>
+
+    <text x="168" y="345" text-anchor="middle" font-size="12.5" class="ok">selector = label → 通信OK</text>
+    <text x="168" y="366" text-anchor="middle" font-size="11" class="t2">Service に endpoint が付く</text>
+  </g>
+
+  <!-- ===================== PANEL B: 不整合 ===================== -->
+  <g>
+    <rect class="pnl" x="350" y="40" width="300" height="430" rx="12"/>
+    <circle cx="376" cy="66" r="12" fill="#dc2626"/><text x="376" y="70" text-anchor="middle" font-size="13" fill="#fff" font-weight="700">2</text>
+    <text x="398" y="70" font-size="15" class="hdr">不整合を注入</text>
+    <text x="632" y="70" text-anchor="end" font-size="10.5" class="t2">40-demo-service-mismatch</text>
+
+    <rect class="box" x="390" y="92" width="220" height="54" rx="8" stroke="#dc2626"/>
+    <text x="500" y="114" text-anchor="middle" font-size="14" class="t1">Service / demo-web</text>
+    <text x="500" y="133" text-anchor="middle" font-size="12"><tspan class="t2">selector: </tspan><tspan class="bad">app=demo-web-mismatch</tspan></text>
+
+    <line class="lnkR" x1="500" y1="146" x2="500" y2="176" marker-end="url(#arrR)"/>
+
+    <rect class="box" x="420" y="179" width="160" height="46" rx="8" stroke="#dc2626"/>
+    <text x="500" y="199" text-anchor="middle" font-size="13" class="t1">Endpoints</text>
+    <text x="500" y="216" text-anchor="middle" font-size="12" class="bad">0（空）</text>
+
+    <line class="lnkR" x1="500" y1="225" x2="500" y2="258" marker-end="url(#arrR)"/>
+    <text x="516" y="247" font-size="15" class="bad">✕</text>
+
+    <rect class="box" x="396" y="261" width="98" height="50" rx="8"/>
+    <text x="445" y="281" text-anchor="middle" font-size="12" class="t1">Pod</text>
+    <text x="445" y="299" text-anchor="middle" font-size="11" class="t2">app=demo-web</text>
+    <rect class="box" x="506" y="261" width="98" height="50" rx="8"/>
+    <text x="555" y="281" text-anchor="middle" font-size="12" class="t1">Pod</text>
+    <text x="555" y="299" text-anchor="middle" font-size="11" class="t2">app=demo-web</text>
+
+    <text x="500" y="345" text-anchor="middle" font-size="12.5" class="bad">selector ≠ label → 不通</text>
+    <text x="500" y="366" text-anchor="middle" font-size="11" class="t2">Pod は Running のまま届かない</text>
+    <text x="500" y="384" text-anchor="middle" font-size="11" class="t2">ログ・Event に出ない障害</text>
+  </g>
+
+  <!-- ===================== PANEL C: 復旧 ===================== -->
+  <g>
+    <rect class="pnl" x="682" y="40" width="300" height="430" rx="12"/>
+    <circle cx="708" cy="66" r="12" fill="#7c3aed"/><text x="708" y="70" text-anchor="middle" font-size="13" fill="#fff" font-weight="700">3</text>
+    <text x="730" y="70" font-size="15" class="hdr">kagent が調査→復旧</text>
+
+    <rect x="712" y="86" width="240" height="26" rx="13" fill="none" stroke="#7c3aed" stroke-dasharray="4 3"/>
+    <text x="832" y="103" text-anchor="middle" font-size="10.5" fill="#7c3aed" font-weight="700">読む: selector / label / endpoints</text>
+
+    <rect class="box" x="722" y="120" width="220" height="52" rx="8" stroke="#16a34a"/>
+    <text x="832" y="141" text-anchor="middle" font-size="14" class="t1">Service / demo-web</text>
+    <text x="832" y="159" text-anchor="middle" font-size="12"><tspan class="t2">selector: </tspan><tspan class="ok">app=demo-web</tspan> <tspan fill="#7c3aed" font-weight="700">←修正</tspan></text>
+
+    <line class="lnkG" x1="832" y1="172" x2="832" y2="198" marker-end="url(#arrG)"/>
+
+    <rect class="box" x="752" y="201" width="160" height="44" rx="8" stroke="#16a34a"/>
+    <text x="832" y="220" text-anchor="middle" font-size="13" class="t1">Endpoints</text>
+    <text x="832" y="237" text-anchor="middle" font-size="12" class="ok">2 addresses ●● 復帰</text>
+
+    <line class="lnkG" x1="832" y1="245" x2="832" y2="272" marker-end="url(#arrG)"/>
+
+    <rect class="box" x="728" y="275" width="98" height="46" rx="8"/>
+    <text x="777" y="294" text-anchor="middle" font-size="12" class="t1">Pod</text>
+    <text x="777" y="311" text-anchor="middle" font-size="11" class="t2">app=demo-web</text>
+    <rect class="box" x="838" y="275" width="98" height="46" rx="8"/>
+    <text x="887" y="294" text-anchor="middle" font-size="12" class="t1">Pod</text>
+    <text x="887" y="311" text-anchor="middle" font-size="11" class="t2">app=demo-web</text>
+
+    <text x="832" y="352" text-anchor="middle" font-size="12.5" class="ok">endpoints 復帰 → 復旧</text>
+    <text x="832" y="373" text-anchor="middle" font-size="11" class="t2">41-demo-service-restore と同等</text>
+  </g>
+
+  <!-- ===================== 凡例 / 原因 ===================== -->
+  <g>
+    <rect x="18" y="486" width="964" height="58" rx="10" fill="#f6f7f9" stroke="#e2e5ea"/>
+    <circle cx="42" cy="507" r="6" fill="#16a34a"/><text x="54" y="511" font-size="11.5" class="t2">つながる（selector = Pod label）</text>
+    <circle cx="42" cy="528" r="6" fill="#dc2626"/><text x="54" y="532" font-size="11.5" class="t2">不通（selector ≠ Pod label）</text>
+    <text x="300" y="511" font-size="12" class="t1">見どころ：</text>
+    <text x="300" y="531" font-size="11.5" class="t2">複数リソース（Service / Endpoints / Pod label）を跨いだ関係を kagent が突き合わせる</text>
+    <text x="740" y="511" font-size="12" class="t1">修復の指示：</text>
+    <text x="740" y="531" font-size="11.5" class="t2">値は指定せず「Pod のラベルに合わせて」だけ伝える</text>
+  </g>
+</svg>

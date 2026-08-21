@@ -38,6 +38,7 @@ kind 版と OKE 版は同じ Helm チャート・同じマニフェスト・同�
   `delete-oke-cluster.sh` を使い、OCI Load Balancer / Block Volume の
   消し忘れ課金を防ぎます。
 - デモ5(追加)は Argo Rollouts コントローラの導入が別途必要です(`install-argo-rollouts.md`)。
-  `demo-web` の Deployment を Rollout に置き換えるため、後でデモ3 をやり直す場合は
-  `manifests/10-demo-app.yaml` で Deployment を復元してください。
-  保険用マニフェスト: `manifests/50-demo-web-rollout.yaml`。
+  専用サンプル `demo-rollout`(`quay.io/argoproj/rollouts-demo`・完全修飾で OKE の
+  short-name 問題を回避)を使うため、`demo-web`(デモ1〜3)には影響しません。
+  マニフェスト: `manifests/50-demo-rollout-app.yaml`(サンプル) /
+  `manifests/51-demo-rollout-canary.yaml`(保険用 Rollout)。

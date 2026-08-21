@@ -35,17 +35,33 @@ kubectl -n argo-rollouts rollout status deploy/argo-rollouts --timeout=180s
 
 ## 2. kubectl プラグインを導入する(可視化用・登壇者マシン)
 カナリアの進行をライブで見せるために使います(Linux/amd64 の例)。
+OCI Cloud Shell は sudo/root が使えないため、PATH の通った `~/bin` に置きます。
 ```bash
-curl -sSL -o kubectl-argo-rollouts \
+mkdir -p ~/bin
+curl -sSL -o ~/bin/kubectl-argo-rollouts \
   https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64
-chmod +x kubectl-argo-rollouts
-sudo mv kubectl-argo-rollouts /usr/local/bin/
+chmod +x ~/bin/kubectl-argo-rollouts
+# ~/bin が PATH に無ければ通す(Cloud Shell は通常入っている)
+case ":$PATH:" in *":$HOME/bin:"*) ;; *) echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc; export PATH="$HOME/bin:$PATH";; esac
 kubectl argo rollouts version
+```
+> sudo が使える通常の環境なら `sudo mv kubectl-argo-rollouts /usr/local/bin/` でも可。
+
+---
+
+## 3. サンプルアプリを投入する
+デモ5 の対象ワークロード `demo-rollout` を入れます。Argo 公式デモアプリ
+`quay.io/argoproj/rollouts-demo`(完全修飾。バージョンごとに色が変わる)を使うため、
+OKE の short-name 問題(`nginx` などで出る ImageInspectError)を回避できます。
+demo-web(デモ1〜3)とは別アプリなので互いに影響しません。
+```bash
+kubectl apply -f manifests/50-demo-rollout-app.yaml
+kubectl get deploy,svc -n demo-app -l app=demo-rollout
 ```
 
 ---
 
-## 3. 動作確認
+## 4. 動作確認
 ```bash
 # コントローラ Pod
 kubectl get pods -n argo-rollouts
@@ -58,17 +74,17 @@ kagent 側では、`argo-rollouts-conversion-agent` に
 
 ---
 
-## 4. デモの実施
+## 5. デモの実施
 `demo.md` の「デモ5(追加): Deployment → Argo Rollouts カナリアへの移行」に従って進めます。
-保険用マニフェスト: `manifests/50-demo-web-rollout.yaml`
+保険用マニフェスト: `manifests/51-demo-rollout-canary.yaml`
 
 ---
 
-## 5. クリーンアップ
+## 6. クリーンアップ
 ```bash
-# Rollout を消して Deployment に戻す(必要なら)
-kubectl -n demo-app delete rollout demo-web --ignore-not-found
-kubectl apply -f manifests/10-demo-app.yaml     # demo-web Deployment を復元
+# デモ5 のワークロードを撤去(Rollout / Deployment / Service)
+kubectl -n demo-app delete rollout demo-rollout --ignore-not-found
+kubectl -n demo-app delete -f manifests/50-demo-rollout-app.yaml --ignore-not-found
 
 # Argo Rollouts コントローラを撤去
 kubectl delete -n argo-rollouts \
@@ -76,5 +92,6 @@ kubectl delete -n argo-rollouts \
 kubectl delete namespace argo-rollouts
 ```
 
-> 注意: デモ5 は `demo-web` の Deployment を Rollout に置き換えます。デモ3(Service
-> 不整合)を後でやり直す場合は、先に上記で Deployment を復元してください。
+> デモ5 は demo-web を触らないので、デモ1〜3 の状態には影響しません。
+> デモ5 をもう一度やるだけなら、`kubectl -n demo-app delete rollout demo-rollout` の後に
+> `kubectl apply -f manifests/50-demo-rollout-app.yaml` で blue の Deployment に戻せます。

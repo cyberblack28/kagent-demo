@@ -431,8 +431,13 @@ kubectl get agents.kagent.dev demo-app-inspector -n kagent -o yaml \
 **「まだ導入していない“進んだリリース手法(カナリア)”を、エージェントに教わりながら入れる」**
 デモです。最後の「昇格(promote)」が、"意図は人間・実行はエージェント" の型を象徴します。
 
-前提: `install-argo-rollouts.md` で Argo Rollouts コントローラと kubectl プラグインを導入済み。
+前提: `install-argo-rollouts.md` で Argo Rollouts コントローラ・kubectl プラグイン・
+サンプルアプリ `demo-rollout` を導入済み。
 使うエージェント: kagent UI で `argo-rollouts-conversion-agent` を選ぶ。
+
+> サンプルは Argo 公式の `quay.io/argoproj/rollouts-demo`(バージョンごとに色が変わる)。
+> イメージが完全修飾なので、OKE の short-name 問題(`nginx` などで出る ImageInspectError)を
+> 回避できる。demo-web(デモ1〜3)とは別アプリなので、互いに影響しない。
 
 ## 0. 事前確認(コントローラの導入)
 
@@ -449,53 +454,54 @@ Argo Rollouts のコントローラがこのクラスタに入っているか確
 
 ```bash
 kubectl get deploy,rollout -n demo-app
-kubectl get pods -n demo-app -l app=demo-web
+kubectl get pods -n demo-app -l app=demo-rollout
 ```
 
 ### 話すこと
-- demo-web は今は普通の Deployment。更新はローリングのみで、段階的な出し方はできない
+- demo-rollout は今は普通の Deployment(色は blue)。更新はローリングのみで、段階的な出し方はできない
 
 ## 2. Rollout への変換を依頼する
 
 ### 画面で入力する依頼文
 ```text
-demo-app の demo-web を Argo Rollouts のカナリアに移行してください。
-既存の Deployment は削除し、同じ Pod(nginx, app=demo-web)を管理する Rollout を作成、
+demo-app の demo-rollout を Argo Rollouts のカナリアに移行してください。
+既存の Deployment は削除し、同じ Pod(app=demo-rollout)を管理する Rollout を作成、
 戦略は 25% → 50% → 100% で各ステップの後に pause してください。
 ```
 
 ### 話すこと
 - Rollout の書き方を知らなくても、対話でカナリアを導入できる = 移行のハードルを肩代わり
-- Service(demo-web)は変えない。selector は app=demo-web のままで、Rollout の Pod に届く
+- Service(demo-rollout)は変えない。selector は app=demo-rollout のままで、Rollout の Pod に届く
 
 ### 参考: 手動で行う場合(保険としてもこれを使う)
 ```bash
-kubectl -n demo-app delete deployment demo-web
-kubectl apply -f manifests/50-demo-web-rollout.yaml
-kubectl argo rollouts get rollout demo-web -n demo-app
+kubectl -n demo-app delete deployment demo-rollout
+kubectl apply -f manifests/51-demo-rollout-canary.yaml
+kubectl argo rollouts get rollout demo-rollout -n demo-app
 ```
 
 ## 3. カナリアリリースを開始する
 
 別ターミナルで進行を可視化しておく:
 ```bash
-kubectl argo rollouts get rollout demo-web -n demo-app --watch
+kubectl argo rollouts get rollout demo-rollout -n demo-app --watch
 ```
 
 ### 画面で入力する依頼文
 ```text
-demo-web のイメージを nginx:1.27-alpine に更新して、カナリアを開始してください。
-今どのステップで止まっているかも教えてください。
+demo-rollout のイメージを quay.io/argoproj/rollouts-demo:yellow に更新して、
+カナリアを開始してください。今どのステップで止まっているかも教えてください。
 ```
 
 ### 話すこと
 - エージェントが `argo_set_rollout_image` で更新 → 25% カナリアで pause
-- --watch 画面で「新旧の Pod が混在し、一部だけ新バージョン」を見せる
+- --watch 画面で「新旧の Pod が混在」する様子を見せる(blue と yellow が混じる)
 - ここで一気に全部を替えないのがカナリアの肝
 
 ### 参考: 手動で行う場合
 ```bash
-kubectl argo rollouts set image demo-web web=nginx:1.27-alpine -n demo-app
+kubectl argo rollouts set image demo-rollout \
+  rollouts-demo=quay.io/argoproj/rollouts-demo:yellow -n demo-app
 ```
 
 ## 4. 確認して昇格する(= 承認)
@@ -513,8 +519,8 @@ kubectl argo rollouts set image demo-web web=nginx:1.27-alpine -n demo-app
 
 ### 参考: 手動で行う場合
 ```bash
-kubectl argo rollouts promote demo-web -n demo-app
-kubectl argo rollouts status demo-web -n demo-app
+kubectl argo rollouts promote demo-rollout -n demo-app
+kubectl argo rollouts status demo-rollout -n demo-app
 ```
 
 ## 5.(任意)異常時に巻き戻す
@@ -528,14 +534,17 @@ kubectl argo rollouts status demo-web -n demo-app
 - `argo_pause_rollout` で停止 → abort/rollback で安全側へ
 - 「全体に広げる前に気づいて戻せる」= 段階リリースの価値
 
-## 6. 後片付け / 復元
+## 6. 後片付け / 再演
 
 ```bash
-kubectl argo rollouts get rollout demo-web -n demo-app   # 100% 完了の確認
-# デモ3 をやり直す場合は Deployment に戻す:
-# kubectl -n demo-app delete rollout demo-web
-# kubectl apply -f manifests/10-demo-app.yaml
+kubectl argo rollouts get rollout demo-rollout -n demo-app   # 100% 完了の確認
+
+# デモ5 をもう一度やる場合(Rollout を消して Deployment に戻す → blue に戻る):
+kubectl -n demo-app delete rollout demo-rollout --ignore-not-found
+kubectl apply -f manifests/50-demo-rollout-app.yaml
 ```
+
+> デモ5 は demo-web を触らないので、デモ1〜3 の状態はそのまま。再演も上の2コマンドだけで OK。
 
 ---
 

@@ -8,6 +8,8 @@
 - デモ2: ImagePullBackOff の原因調査と修復
 - デモ3: Service と Pod のつながり確認(複数リソースをまたいだ推論)
 - デモ4: 自作エージェントを UI から作る(運用の標準化)
+- デモ5(追加・Ochacafe 向け): Deployment を Argo Rollouts のカナリアへ移行する
+  (`argo-rollouts-conversion-agent` を使用。前提は `install-argo-rollouts.md`)
 
 ## クラスタの選択
 | パターン | 用途 | 構築 | 破棄 |
@@ -35,3 +37,7 @@ kind 版と OKE 版は同じ Helm チャート・同じマニフェスト・同�
   `UI_LB_ALLOWED_CIDR` で必ず制限してください。後始末は必ず
   `delete-oke-cluster.sh` を使い、OCI Load Balancer / Block Volume の
   消し忘れ課金を防ぎます。
+- デモ5(追加)は Argo Rollouts コントローラの導入が別途必要です(`install-argo-rollouts.md`)。
+  `demo-web` の Deployment を Rollout に置き換えるため、後でデモ3 をやり直す場合は
+  `manifests/10-demo-app.yaml` で Deployment を復元してください。
+  保険用マニフェスト: `manifests/50-demo-web-rollout.yaml`。

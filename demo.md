@@ -460,6 +460,39 @@ kubectl get pods -n demo-app -l app=demo-rollout
 ### 話すこと
 - demo-rollout は今は普通の Deployment(色は blue)。更新はローリングのみで、段階的な出し方はできない
 
+## 1-b. 視覚確認の準備(ブラウザでアプリの色を見る)
+
+rollouts-demo は、リクエストごとの応答を**色付きの四角**で流し続ける Web UI を持つ。
+カナリア中は **青と黄が混ざって流れる**ので、進行が一目で分かる。
+
+> **本番前に済ませておくこと**。OCI Load Balancer に EXTERNAL-IP が付くまで数分かかるため、
+> ステージ上で待たないようにする。
+
+```bash
+# Service を一時的に LoadBalancer にする
+kubectl -n demo-app patch svc demo-rollout -p '{"spec":{"type":"LoadBalancer"}}'
+
+# 接続元を自分のグローバルIPに制限する(推奨。<YOUR_IP> は実IPに置き換え)
+kubectl -n demo-app patch svc demo-rollout \
+  -p '{"spec":{"loadBalancerSourceRanges":["<YOUR_IP>/32"]}}'
+
+# EXTERNAL-IP が付くまで待つ
+kubectl -n demo-app get svc demo-rollout -w
+```
+
+ブラウザで `http://<EXTERNAL-IP>/` を開く。この時点では**すべて青**。
+
+### 話すこと
+- 今は全部青 = 全 Pod が blue。この画面を出したまま、次のカナリアを見てもらう
+
+### 代替: ブラウザを使わない場合(LB 不要)
+Service 経由で `/color` を連打し、色の比率をテキストで見せる。
+```bash
+kubectl -n demo-app run curlbox --rm -it --restart=Never \
+  --image=docker.io/curlimages/curl:8.10.1 -- \
+  sh -c 'for i in $(seq 40); do curl -s http://demo-rollout/color; echo; done' | sort | uniq -c
+```
+
 ## 2. Rollout への変換を依頼する
 
 ### 画面で入力する依頼文
@@ -495,7 +528,8 @@ demo-rollout のイメージを docker.io/argoproj/rollouts-demo:yellow に更�
 
 ### 話すこと
 - エージェントが `argo_set_rollout_image` で更新 → 25% カナリアで pause
-- --watch 画面で「新旧の Pod が混在」する様子を見せる(blue と yellow が混じる)
+- **ブラウザ画面(1-b)に注目**。青一色だったところに**黄が約1/4混ざり始める**
+- --watch 画面でも「新旧の Pod が混在」する様子を見せる(blue と yellow が混じる)
 - ここで一気に全部を替えないのがカナリアの肝
 
 ### 参考: 手動で行う場合
@@ -514,6 +548,7 @@ kubectl argo rollouts set image demo-rollout \
 
 ### 話すこと
 - `argo_rollouts_list` で状態確認 → `argo_promote_rollout` で 50% → 100% へ
+- ブラウザ画面(1-b)で、黄の比率が **1/4 → 1/2 → 全部**に増えていくのを見せる
 - **promote(昇格)＝人間の“承認”**。まさに「意図と承認は人間、実行はエージェント」
 - 段階を踏むので、途中で問題が見えたら止められる(次のダメ押しへ)
 
@@ -542,6 +577,12 @@ kubectl argo rollouts get rollout demo-rollout -n demo-app   # 100% 完了の確
 # デモ5 をもう一度やる場合(Rollout を消して Deployment に戻す → blue に戻る):
 kubectl -n demo-app delete rollout demo-rollout --ignore-not-found
 kubectl apply -f manifests/50-demo-rollout-app.yaml
+```
+
+**1-b で LoadBalancer にした場合は必ず戻す**(OCI Load Balancer の課金を止めるため):
+```bash
+kubectl -n demo-app patch svc demo-rollout -p '{"spec":{"type":"ClusterIP"}}'
+kubectl -n demo-app get svc demo-rollout          # EXTERNAL-IP が消えたことを確認
 ```
 
 > デモ5 は demo-web を触らないので、デモ1〜3 の状態はそのまま。再演も上の2コマンドだけで OK。

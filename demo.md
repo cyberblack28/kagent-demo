@@ -435,7 +435,7 @@ kubectl get agents.kagent.dev demo-app-inspector -n kagent -o yaml \
 サンプルアプリ `demo-rollout` を導入済み。
 使うエージェント: kagent UI で `argo-rollouts-conversion-agent` を選ぶ。
 
-> サンプルは Argo 公式の `quay.io/argoproj/rollouts-demo`(バージョンごとに色が変わる)。
+> サンプルは Argo 公式の `docker.io/argoproj/rollouts-demo`(バージョンごとに色が変わる)。
 > イメージが完全修飾なので、OKE の short-name 問題(`nginx` などで出る ImageInspectError)を
 > 回避できる。demo-web(デモ1〜3)とは別アプリなので、互いに影響しない。
 
@@ -489,7 +489,7 @@ kubectl argo rollouts get rollout demo-rollout -n demo-app --watch
 
 ### 画面で入力する依頼文
 ```text
-demo-rollout のイメージを quay.io/argoproj/rollouts-demo:yellow に更新して、
+demo-rollout のイメージを docker.io/argoproj/rollouts-demo:yellow に更新して、
 カナリアを開始してください。今どのステップで止まっているかも教えてください。
 ```
 
@@ -501,7 +501,7 @@ demo-rollout のイメージを quay.io/argoproj/rollouts-demo:yellow に更新�
 ### 参考: 手動で行う場合
 ```bash
 kubectl argo rollouts set image demo-rollout \
-  rollouts-demo=quay.io/argoproj/rollouts-demo:yellow -n demo-app
+  rollouts-demo=docker.io/argoproj/rollouts-demo:yellow -n demo-app
 ```
 
 ## 4. 確認して昇格する(= 承認)

@@ -51,7 +51,7 @@ kubectl argo rollouts version
 
 ## 3. サンプルアプリを投入する
 デモ5 の対象ワークロード `demo-rollout` を入れます。Argo 公式デモアプリ
-`quay.io/argoproj/rollouts-demo`(完全修飾。バージョンごとに色が変わる)を使うため、
+`docker.io/argoproj/rollouts-demo`(完全修飾。バージョンごとに色が変わる)を使うため、
 OKE の short-name 問題(`nginx` などで出る ImageInspectError)を回避できます。
 demo-web(デモ1〜3)とは別アプリなので互いに影響しません。
 ```bash

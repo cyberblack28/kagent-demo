@@ -10,6 +10,8 @@
 - デモ4: 自作エージェントを UI から作る(運用の標準化)
 - デモ5(追加・Ochacafe 向け): Deployment を Argo Rollouts のカナリアへ移行する
   (`argo-rollouts-conversion-agent` を使用。前提は `install-argo-rollouts.md`)
+- デモ6(追加・Ochacafe 向け): イベント駆動でエージェントを自動起動する
+  (khook。対話駆動からループへ。前提は `install-khook.md`)
 
 ## クラスタの選択
 | パターン | 用途 | 構築 | 破棄 |
@@ -42,3 +44,7 @@ kind 版と OKE 版は同じ Helm チャート・同じマニフェスト・同�
   short-name 問題を回避)を使うため、`demo-web`(デモ1〜3)には影響しません。
   マニフェスト: `manifests/50-demo-rollout-app.yaml`(サンプル) /
   `manifests/51-demo-rollout-canary.yaml`(保険用 Rollout)。
+- デモ6(追加)は khook の導入が別途必要です(`install-khook.md`)。
+  Hook(`manifests/60-demo-hook-readonly.yaml`)を残したままにすると、以降 `demo-app` で
+  Pod が再起動するたびにエージェントが自動起動します。デモ1 を回し直す前に
+  Hook を削除してください。

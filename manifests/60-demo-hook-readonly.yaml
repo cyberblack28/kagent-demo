@@ -1,0 +1,36 @@
+# デモ6(追加): khook で Pod の再起動イベントを拾い、エージェントに自動調査させる。
+#
+# 設計方針:
+# - Hook は「イベントを監視する namespace」に置く。demo-app の Pod 再起動を拾うため
+#   namespace は demo-app にする(エージェント本体は kagent namespace のまま)。
+# - agentRef.namespace で、別 namespace のエージェントを指定できる。
+# - このデモでは **読み取り専用** に倒す。khook の公式サンプルは
+#   "AUTONOMOUS MODE / Never ask for permission"(全自動修復)だが、
+#   ここでは「調査して報告するだけ・変更はしない」ポリシーをプロンプトで明示する。
+#   本当に変更させたくない場合は、プロンプトだけに頼らず、
+#   読み取り系ツールだけを持つエージェント(デモ4の demo-app-inspector)を指定すること。
+# - 使えるテンプレート変数は {{.ResourceName}} と {{.EventTime}}。
+# - 同一イベントは 10 分間 重複抑制される(khook の dedup)。
+apiVersion: kagent.dev/v1alpha2
+kind: Hook
+metadata:
+  name: demo-app-pod-restart
+  namespace: demo-app
+spec:
+  eventConfigurations:
+    - eventType: pod-restart
+      agentRef:
+        name: k8s-agent
+        namespace: kagent
+      prompt: |
+        Pod {{.ResourceName}} が {{.EventTime}} に再起動しました。
+        調査のみを行い、クラスタへの変更は一切しないでください。
+
+        手順:
+        - describe / events / logs を確認して、再起動の原因を特定する
+        - apply / patch / delete / scale などの変更操作は実行しない
+        - 回答は必ず日本語で、次のフォーマットで報告する
+
+        【状況】いま何が起きているか(1-2行)
+        【原因】なぜ起きているか(根拠となるログ・イベントを添えて)
+        【推奨アクション】実行すべきコマンドと、その効果(提案のみ)

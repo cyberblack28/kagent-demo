@@ -589,6 +589,89 @@ kubectl -n demo-app get svc demo-rollout          # EXTERNAL-IP が消えたこ�
 
 ---
 
+# デモ6(追加): イベント駆動でエージェントを自動起動する(khook)
+
+デモ1〜5は、すべて**人がチャットで頼んで**エージェントが動いていました。
+このデモは最後の一歩で、**人が頼まなくてもエージェントが起動する**ようにします。
+Kubernetes の Event を監視する [khook](https://github.com/kagent-dev/khook) を入れ、
+「Pod が再起動したら k8s-agent が自動で調査する」という**ループ**を作ります。
+
+```
+Kubernetes Event ─▶ khook ─(A2A: prompt + コンテキスト)─▶ kagent エージェント
+                      └ 同一イベントは 10 分間 重複抑制(dedup)
+```
+
+前提: `install-khook.md` で khook と Hook(`manifests/60-demo-hook-readonly.yaml`)を導入済み。
+
+## 1. 仕掛けを見せる
+
+```bash
+kubectl get hooks -n demo-app
+kubectl get hook demo-app-pod-restart -n demo-app -o yaml
+```
+
+### 話すこと
+- 「Pod 再起動(pod-restart)を見つけたら、k8s-agent にこのプロンプトで聞く」と
+  **YAML で宣言**してあるだけ。エージェント呼び出しの自動化も Kubernetes リソース
+- 監視できるイベントは pod-restart / pod-pending / oom-kill / probe-failed / node-not-ready
+- **今回は「調査して報告するだけ・変更はしない」プロンプトにしてある**(後述)
+
+## 2. 障害を起こす(人はここまで)
+
+```bash
+kubectl apply -f manifests/20-demo-fault-crashloop.yaml
+kubectl get pods -n demo-app -l app=demo-crashloop -w
+```
+
+### 話すこと
+- ここで**登壇者はチャットを一切打たない**。あとは待つだけ
+- Pod が再起動を始めると Event が発生し、khook がそれを拾う
+
+## 3. エージェントが勝手に動いたことを確認する
+
+kagent UI の k8s-agent のセッション一覧を開く(誰も入力していないのに新しい会話が増えている)。
+
+```bash
+# khook 側のログでも、イベント検知 → エージェント呼び出しが追える
+kubectl logs -n kagent -l app.kubernetes.io/name=khook --tail=50
+# Hook の status に、拾ったイベントが記録される
+kubectl get hook demo-app-pod-restart -n demo-app -o jsonpath='{.status}' | head -c 500; echo
+```
+
+### 話すこと
+- **人間が誰も呼んでいないのに、エージェントが調査を終えて報告している**
+- これがデモ1との決定的な違い。デモ1は「人が聞く」、デモ6は「イベントが呼ぶ」
+- Kubernetes の reconciliation loop に、**LLM の判断が組み込まれた**状態
+
+## 4. あえて「読み取り専用」にした理由を話す(このデモの山場)
+
+### 話すこと
+- khook の公式サンプルは実は真逆で、
+  「AUTONOMOUS MODE / Never ask for permission / 承認なしで修復を完了せよ」という
+  **全自動修復**のプロンプトが載っている。技術的にはそこまでできる
+- しかし本デモでは意図的に「**調査して報告するだけ**」に留めた。理由:
+  - **非決定性**: 同じイベントでも毎回同じ判断とは限らない
+  - **暴走・振動**: エージェントの修正が新しい Event を生み、また発火…という
+    ループになりうる(khook の 10 分 dedup はその緩和策)
+  - **説明責任**: 誰も見ていないところで本番クラスタが書き換わる状態は、
+    まだ多くの現場で受け入れられない
+- **現実的な導入順序**: まず「自動で調べて報告」までを任せ、
+  信頼が貯まってから変更を許す。デモ4の「ツールを絞る＝権限設計」がここで効く
+  (本当に変更させたくないなら、プロンプトで頼むのではなく
+  読み取り専用ツールしか持たない `demo-app-inspector` を `agentRef` に指定する)
+
+## 5. 後片付け
+
+```bash
+# Hook を消してイベント駆動を止める(残すと再起動のたびに起動する)
+kubectl delete -f manifests/60-demo-hook-readonly.yaml --ignore-not-found
+```
+
+### 話すこと
+- 止めるのも YAML を消すだけ。**エージェントの自動化そのものが宣言的に管理できる**
+
+---
+
 # デモの締め
 
 ### 話すこと
@@ -600,6 +683,9 @@ kubectl -n demo-app get svc demo-rollout          # EXTERNAL-IP が消えたこ�
   人間の役割は「意図の指示」と「結果の事実確認」に変わる
 - (デモ5 を行った場合)調査・修復だけでなく、カナリアのような新しいリリース手法の
   導入まで任せられる。昇格の「承認」だけ人間が担う、という同じ型が効く
+- (デモ6 を行った場合)最後は「人が頼む」ことすら不要になり、イベントがエージェントを
+  呼ぶ。ただし**どこまで任せるかは設計事項**。まずは自動で調べさせ、
+  変更は人間が承認する、という順序が現実的
 
 ### 追加で言うとよい一言
 ```text

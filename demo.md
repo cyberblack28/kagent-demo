@@ -649,9 +649,29 @@ kagent UI → `k8s-agent` → 左サイドバーの **「Older」を展開**す�
 
 ### 3-2. khook のログで経路を追う
 
+> **本番では、障害を注入する“前”に別ウィンドウでライブ追尾しておくのが確実。**
+> workflow-coordinator が 30 秒ごとに DEBUG を出すため、`--tail=50` だと
+> 数分で目的の行が流れて消える。`-f` と組み合わせるときは
+> **`--line-buffered` が必須**(無いと grep が出力を溜めてリアルタイムに出ない)。
+
 ```bash
-kubectl logs -n kagent -l app.kubernetes.io/name=khook --tail=50
+# ライブ追尾(推奨・障害注入の前に流しておく)
+kubectl logs -n kagent -l app.kubernetes.io/name=khook -f \
+  | grep --line-buffered -E "Discovered interesting event|accepted message via A2A|Agent call completed successfully|suppression window"
 ```
+
+後から探す場合は `--tail` を大きめにして grep する:
+```bash
+# 成功の3行
+kubectl logs -n kagent -l app.kubernetes.io/name=khook --tail=500 \
+  | grep -E "Discovered interesting event|accepted message via A2A|Agent call completed successfully"
+
+# dedup が効いている行
+kubectl logs -n kagent -l app.kubernetes.io/name=khook --tail=500 \
+  | grep -E "suppression window|Event ignored due to deduplication"
+```
+
+> 1行が長いので、画面が狭いときは `| cut -c1-160` を足すと読みやすい。
 
 **この3行を指せばよい**(イベント検知 → A2A 呼び出し → 成功):
 ```text

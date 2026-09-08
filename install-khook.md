@@ -32,11 +32,37 @@ make helm-version
 
 # CRD を先に入れる
 helm install khook-crds ./helm/khook-crds --namespace kagent --create-namespace
-# コントローラを入れる
-helm install khook ./helm/khook --namespace kagent --create-namespace
+# コントローラを入れる(イメージタグは明示する。理由は下記)
+helm install khook ./helm/khook --namespace kagent --create-namespace \
+  --set image.tag=0.0.4
 ```
 
-> `make helm-deploy` でも同等（CRD＋コントローラをまとめて導入）。
+> `make helm-deploy` でも同等（CRD＋コントローラをまとめて導入）。ただし下記のタグ問題は同じく発生する。
+
+### ⚠️ `image.tag` を明示しないと ErrImagePull になる
+chart は、タグを未指定だと `Chart.AppVersion` をイメージタグに使う。その AppVersion は
+`make helm-version` が `git describe --tags` の結果（例: `v0.0.4`、`v0.0.4-12-gabc1234`）で
+埋めるため **`v` 付き**になる。一方、GHCR に実在するタグは **`0.0.4`（`v` 無し）**のみ。
+
+```
+chart が引く: ghcr.io/kagent-dev/khook/khook:v0.0.4  → 存在しない → ErrImagePull
+実在するタグ: ghcr.io/kagent-dev/khook/khook:0.0.4
+```
+
+すでに ErrImagePull になっている場合は、タグを上書きして入れ直す:
+```bash
+helm -n kagent upgrade khook ./helm/khook --reuse-values --set image.tag=0.0.4
+kubectl -n kagent rollout status deploy/khook --timeout=120s
+```
+
+実際に何を引こうとしているかの確認:
+```bash
+kubectl -n kagent get pod -l app.kubernetes.io/name=khook \
+  -o jsonpath='{.items[0].spec.containers[0].image}'; echo
+```
+
+> 最新の実在タグは次で確認できる（v0.0.4 の実験的プロジェクトなので、将来変わりうる）:
+> `curl -s "https://ghcr.io/token?scope=repository:kagent-dev/khook/khook:pull&service=ghcr.io" | jq -r .token | xargs -I{} curl -s -H "Authorization: Bearer {}" https://ghcr.io/v2/kagent-dev/khook/khook/tags/list`
 
 ### 動作確認
 ```bash

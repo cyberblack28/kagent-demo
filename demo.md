@@ -626,21 +626,64 @@ kubectl get pods -n demo-app -l app=demo-crashloop -w
 ### 話すこと
 - ここで**登壇者はチャットを一切打たない**。あとは待つだけ
 - Pod が再起動を始めると Event が発生し、khook がそれを拾う
+- 検知からエージェントの応答まで **10秒程度**(リハーサル実績: 06:41:58 検知 → 06:42:07 完了)
+
+> **リハーサルで一度動かした後、同じ Pod で再演する場合の注意**
+> dedup は「イベント種別 : namespace : リソース名」をキーに 10 分間抑制する。
+> Pod 名が同じだと発火しないので、Pod を作り直してキーを変える:
+> ```bash
+> kubectl -n demo-app rollout restart deploy demo-crashloop
+> ```
 
 ## 3. エージェントが勝手に動いたことを確認する
 
-kagent UI の k8s-agent のセッション一覧を開く(誰も入力していないのに新しい会話が増えている)。
+### 3-1. UI で「誰も打っていないセッション」を見せる
+
+kagent UI → `k8s-agent` → 左サイドバーの **「Older」を展開**する。
+**`hook-pod-restart-<timestamp>`** という名前のセッションがあり、中に
+【状況】【原因】【推奨アクション】形式の報告が入っている。
+
+> 名前が目印になる。**人間が始めたセッションは最初のメッセージが名前**になるのに対し、
+> **khook が作ったものは `hook-<イベント種別>-<timestamp>`** という機械的な名前。
+> 一覧を見せるだけで「これは人が打っていない」と分かる。
+
+### 3-2. khook のログで経路を追う
 
 ```bash
-# khook 側のログでも、イベント検知 → エージェント呼び出しが追える
 kubectl logs -n kagent -l app.kubernetes.io/name=khook --tail=50
-# Hook の status に、拾ったイベントが記録される
+```
+
+**この3行を指せばよい**(イベント検知 → A2A 呼び出し → 成功):
+```text
+event-watcher   Discovered interesting event   {"eventType": "pod-restart", "resource": "demo-crashloop-xxxxx"}
+kagent-client   Agent accepted message via A2A {"agentRef": "kagent/k8s-agent", "taskReturned": true}
+kagent-client   Agent call completed successfully
+```
+
+**続けて、dedup が効いている行も見せる**(CrashLoop は何度もイベントを出すが、起動は1回だけ):
+```text
+dedup             Within notification suppression window; will ignore  {"lastNotifiedAt": "..."}
+event-processor   Event ignored due to deduplication
+```
+
+### 3-3. Hook の status(宣言リソース上の証跡)
+
+```bash
 kubectl get hook demo-app-pod-restart -n demo-app -o jsonpath='{.status}' | head -c 500; echo
 ```
+```json
+{"activeEvents":[{"eventType":"pod-restart","resourceName":"demo-crashloop-xxxxx",
+  "firstSeen":"...","lastSeen":"...","status":"firing"}],"lastUpdated":"..."}
+```
+- `status: firing` = 追跡中(抑制ウィンドウ内)
+- `firstSeen` から 10 分で期限切れ・破棄され、以降は同じ Pod でも再発火する
 
 ### 話すこと
 - **人間が誰も呼んでいないのに、エージェントが調査を終えて報告している**
 - これがデモ1との決定的な違い。デモ1は「人が聞く」、デモ6は「イベントが呼ぶ」
+- ログ(動的な証跡)と Hook status(宣言リソース上の状態)の両方で追える。
+  **自動化そのものが Kubernetes の流儀で観測できる**
+- dedup のログは「ループを暴走させないブレーキ」の実物。次の手順4につながる
 - Kubernetes の reconciliation loop に、**LLM の判断が組み込まれた**状態
 
 ## 4. あえて「読み取り専用」にした理由を話す(このデモの山場)

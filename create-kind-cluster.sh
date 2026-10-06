@@ -26,6 +26,11 @@ OCI_GENAI_MODEL="${OCI_GENAI_MODEL:-openai.gpt-oss-120b}"
 OCI_GENAI_BASE_URL="${OCI_GENAI_BASE_URL:-https://inference.generativeai.${OCI_GENAI_REGION}.oci.oraclecloud.com/20231130/actions/v1}"
 OPENAI_PROVIDER_API_KEY="${OPENAI_PROVIDER_API_KEY:-${OPENAI_API_KEY:-${OCI_GENAI_API_KEY:-}}}"
 KAGENT_HELM_TIMEOUT="${KAGENT_HELM_TIMEOUT:-15m}"
+# kagent のチャートバージョン(OKE 版と同じ検証済みの版に固定する)。
+# 未指定だと最新安定版が入り、検証環境と本番デモ環境でバージョンがずれる。
+# 別の版を試すときだけ上書きする: KAGENT_VERSION=0.10.3 ./create-kind-cluster.sh
+# ※ チャートのタグは "v" 無し(例: 0.9.11)。
+KAGENT_VERSION="${KAGENT_VERSION:-0.9.11}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 need_bin() {
@@ -112,16 +117,17 @@ echo "[2/8] Create namespaces"
 kubectl create namespace "${KAGENT_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 kubectl create namespace "${DEMO_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
-echo "[3/8] Install kagent CRDs (Helm)"
+echo "[3/8] Install kagent CRDs (Helm, version ${KAGENT_VERSION})"
 cleanup_stuck_release kagent-crds "${KAGENT_NAMESPACE}"
 helm_install_or_diagnose kagent-crds \
   oci://ghcr.io/kagent-dev/kagent/helm/kagent-crds \
+  --version "${KAGENT_VERSION}" \
   --namespace "${KAGENT_NAMESPACE}" \
   --create-namespace \
   --wait \
   --timeout "${KAGENT_HELM_TIMEOUT}"
 
-echo "[4/8] Install kagent core chart (Helm)"
+echo "[4/8] Install kagent core chart (Helm, version ${KAGENT_VERSION})"
 cleanup_stuck_release kagent "${KAGENT_NAMESPACE}"
 # OKE 版と同一の設定:
 # - registry=ghcr.io       : cr.kagent.dev の不調を回避し、イメージ実体の ghcr.io を直接使う
@@ -129,6 +135,7 @@ cleanup_stuck_release kagent "${KAGENT_NAMESPACE}"
 # - --set-string           : API キー中の特殊文字を Helm が解釈しないようにする
 helm_install_or_diagnose kagent \
   oci://ghcr.io/kagent-dev/kagent/helm/kagent \
+  --version "${KAGENT_VERSION}" \
   --namespace "${KAGENT_NAMESPACE}" \
   --wait \
   --timeout "${KAGENT_HELM_TIMEOUT}" \

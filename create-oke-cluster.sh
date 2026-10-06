@@ -18,6 +18,13 @@ OCI_GENAI_MODEL="${OCI_GENAI_MODEL:-openai.gpt-oss-120b}"
 OCI_GENAI_BASE_URL="${OCI_GENAI_BASE_URL:-https://inference.generativeai.${OCI_GENAI_REGION}.oci.oraclecloud.com/20231130/actions/v1}"
 OPENAI_PROVIDER_API_KEY="${OPENAI_PROVIDER_API_KEY:-${OPENAI_API_KEY:-${OCI_GENAI_API_KEY:-}}}"
 KAGENT_HELM_TIMEOUT="${KAGENT_HELM_TIMEOUT:-15m}"
+# kagent のチャートバージョン(検証済みの版に固定する)。
+# 未指定だと helm はその時点の最新安定版を入れてしまい、デモが動かなくなる恐れがある。
+# (kagent 1.0 系では Agent の API が v1alpha3 に再設計され、Deployment ベースの
+#  エージェントも削除されているため、0.9.x 前提のデモ・マニフェストはそのまま通らない)
+# 別の版を試すときだけ上書きする: KAGENT_VERSION=0.10.3 ./create-oke-cluster.sh
+# ※ チャートのタグは "v" 無し(例: 0.9.11)。
+KAGENT_VERSION="${KAGENT_VERSION:-0.9.11}"
 # UI の公開方式: ClusterIP(既定、port-forward で利用) or LoadBalancer
 # LoadBalancer にする場合は、可能な限り UI_LB_ALLOWED_CIDR で接続元を絞ること。
 #   例: KAGENT_UI_SERVICE_TYPE=LoadBalancer UI_LB_ALLOWED_CIDR="203.0.113.10/32" ./create-oke-cluster.sh
@@ -121,16 +128,17 @@ echo "[1/8] Create namespaces"
 kubectl create namespace "${KAGENT_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 kubectl create namespace "${DEMO_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
-echo "[2/8] Install kagent CRDs"
+echo "[2/8] Install kagent CRDs (version ${KAGENT_VERSION})"
 cleanup_stuck_release kagent-crds "${KAGENT_NAMESPACE}"
 helm_install_or_diagnose kagent-crds \
   oci://ghcr.io/kagent-dev/kagent/helm/kagent-crds \
+  --version "${KAGENT_VERSION}" \
   --namespace "${KAGENT_NAMESPACE}" \
   --create-namespace \
   --wait \
   --timeout "${KAGENT_HELM_TIMEOUT}"
 
-echo "[3/8] Install kagent core chart"
+echo "[3/8] Install kagent core chart (version ${KAGENT_VERSION})"
 cleanup_stuck_release kagent "${KAGENT_NAMESPACE}"
 # API キーは --set ではなく --set-string で渡す。
 # --set は値中の "," や特殊文字を Helm の構文として解釈してしまうため。
@@ -157,6 +165,7 @@ fi
 
 helm_install_or_diagnose kagent \
   oci://ghcr.io/kagent-dev/kagent/helm/kagent \
+  --version "${KAGENT_VERSION}" \
   --namespace "${KAGENT_NAMESPACE}" \
   --wait \
   --timeout "${KAGENT_HELM_TIMEOUT}" \

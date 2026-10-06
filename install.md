@@ -14,6 +14,29 @@ OCI Generative AI(OpenAI 互換エンドポイント)をモデルとして使い
 > kind 版と OKE 版は同じ Helm チャート・同じマニフェスト・同じ ModelConfig を
 > 使うため、ローカルで検証した内容がそのまま OKE でも再現できます。
 
+### 検証済みバージョン
+
+| コンポーネント | バージョン |
+|---|---|
+| kagent(Helm チャート) | **0.9.11**(API `kagent.dev/v1alpha2`) |
+| khook | 0.0.4(`install-khook.md`) |
+| モデル | OCI Generative AI `openai.gpt-oss-120b` |
+
+構築スクリプトは kagent のチャートを **`KAGENT_VERSION`(既定 `0.9.11`)に固定**しています。
+固定しないと helm はその時点の最新安定版を入れるため、作り直したときに
+検証済みのデモが動かなくなる恐れがあります。
+
+> **kagent 1.0 系について**: 2026年9月に `v1.0.0-alpha` がリリースされ、API が `v1alpha3` に
+> 再設計されました(`Agent` が `AgentTemplate` + `Harness` に分離、Deployment ベースの
+> エージェントは削除)。本リポジトリのデモ・マニフェストは 0.9.x 前提のため、1.0 系では
+> そのままでは動きません。
+
+別の版を試す場合だけ上書きします:
+```bash
+KAGENT_VERSION=0.10.3 ./create-oke-cluster.sh
+```
+※ チャートのタグは `v` 無し(例: `0.9.11`)。現在の版は `helm -n kagent list` で確認できます。
+
 ---
 
 ## 0. 前提

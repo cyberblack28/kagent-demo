@@ -12,6 +12,8 @@
   (`argo-rollouts-conversion-agent` を使用。前提は `install-argo-rollouts.md`)
 - デモ6(追加・Ochacafe 向け): イベント駆動でエージェントを自動起動する
   (khook。対話駆動からループへ。前提は `install-khook.md`)
+- デモ7(追加・Ochacafe 向け): メトリクスにしか出ない障害を調べる
+  (observability-agent。promql-agent への委譲でグラフの層を実演。前提は `install-observability.md`)
 
 ## クラスタの選択
 | パターン | 用途 | 構築 | 破棄 |
@@ -48,3 +50,6 @@ kind 版と OKE 版は同じ Helm チャート・同じマニフェスト・同�
   Hook(`manifests/60-demo-hook-readonly.yaml`)を残したままにすると、以降 `demo-app` で
   Pod が再起動するたびにエージェントが自動起動します。デモ1 を回し直す前に
   Hook を削除してください。
+- デモ7(追加)は Prometheus / Grafana と grafana-mcp の導入が別途必要です(`install-observability.md`)。
+  kagent 本体は `helm upgrade` せず、grafana-mcp を別リリースで入れます(OCI のモデル設定を壊さないため)。
+  負荷 Pod: `manifests/70-demo-cpu-throttle.yaml`(本番の数分前までに適用)。

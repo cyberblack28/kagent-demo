@@ -1,0 +1,39 @@
+# デモ7(追加): メトリクスにしか出ない障害。
+# CPU の上限(limits)を極端に絞った状態で CPU を使い続けるため、CPU がスロットリングされ続ける。
+# - Pod は Running のまま、再起動もしない
+# - Kubernetes の Event は出ない
+# - ログも出ない(sha1sum は出力を捨てている)
+# つまり describe / events / logs では異常に見えず、Prometheus のメトリクスにだけ現れる。
+#
+# 注意:
+# - イメージは OKE の短縮名問題を避けるため docker.io から完全修飾で指定。
+# - rate(...[5m]) で値を見るため、本番の数分前までに適用しておくこと。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-cpu-throttle
+  namespace: demo-app
+  labels:
+    app: demo-cpu-throttle
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-cpu-throttle
+  template:
+    metadata:
+      labels:
+        app: demo-cpu-throttle
+    spec:
+      containers:
+        - name: burn
+          image: docker.io/library/busybox:1.36
+          # /dev/zero を読み続けてハッシュ計算 = 1コア分の CPU を使い続ける処理
+          command: ["sh", "-c", "sha1sum /dev/zero > /dev/null"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"      # 必要な CPU に対して極端に少ない = 強くスロットリングされる
+              memory: "32Mi"

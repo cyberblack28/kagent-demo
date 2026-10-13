@@ -735,6 +735,126 @@ kubectl delete -f manifests/60-demo-hook-readonly.yaml --ignore-not-found
 
 ---
 
+# デモ7(追加): メトリクスにしか出ない障害を調べる(observability-agent)
+
+デモ1〜3は、ログ・イベント・リソースの関係から原因を見つけるものでした。
+このデモは、**そのどれにも出ず、メトリクスにだけ現れる障害**を扱います。
+
+CPU の上限を極端に絞った Pod は、Running のまま再起動もせず、イベントもログも出ません。
+ところが CPU は強く絞られ(スロットリングされ)続けています。k8s-agent には見えず、
+Prometheus を見られる observability-agent には見える ── という対比を見せます。
+
+さらに observability-agent は PromQL の生成を **promql-agent に委譲(A2A)** するので、
+5レイヤーの **グラフ(誰に任せるか)** を実演できます。発表ではグラフの章で使うのがおすすめです。
+
+| レイヤー | このデモで見せられること |
+|---|---|
+| コンテキスト | 情報源がログ → イベント → リソースの関係 → **メトリクス**へ広がる |
+| ハーネス | 同じ質問でも、**持っているツールによって見えるものが変わる** |
+| グラフ | observability-agent → **promql-agent への委譲** |
+
+前提: `install-observability.md` で observability-agent が `Accepted=True` / `Ready=True` になっていること。
+使うエージェント: kagent UI で `k8s-agent` と `observability-agent`。
+
+## 0. 事前準備(本番の数分前までに済ませる)
+
+```bash
+kubectl apply -f manifests/70-demo-cpu-throttle.yaml
+kubectl get pods -n demo-app -l app=demo-cpu-throttle
+```
+
+- `rate(...[5m])` で見るため、**数分ぶんのメトリクスが溜まってから**でないと値が安定しない。
+  登壇直前ではなく、デモ1を始める前など早めに適用しておく。
+- エージェントのツール読み込み漏れ(`ask_user` しか持たない状態)を避けるため、
+  observability-agent に一度ウォームアップの質問を投げておく
+  (例:「Grafana に登録されているデータソースの一覧を教えてください」)。
+
+## 1. 見た目には異常がないことを確認する
+
+```bash
+kubectl get pods -n demo-app -l app=demo-cpu-throttle
+kubectl describe pod -n demo-app -l app=demo-cpu-throttle | tail -15
+kubectl logs -n demo-app -l app=demo-cpu-throttle --tail=20
+```
+
+### 話すこと
+- Running で、再起動も 0。Events にも何も出ていない。ログも空
+- でも実は CPU が絞られていて、本来の性能が出ていない
+- デモ3の Service 不整合と同じ「見えない障害」だが、今回は**リソースの関係を見ても分からない**
+
+## 2. k8s-agent に聞く
+
+### 画面で入力する依頼文(k8s-agent に)
+```text
+demo-app namespace で、動作が遅い・性能が出ていない Pod がないか調べてください。
+```
+
+### 話すこと
+- describe / events / logs を見て、「目立った異常は見当たらない」と返ってくるはず
+- k8s-agent が悪いのではない。**持っている道具(`k8s_*`)ではメトリクスが見えない**
+- limits の値が小さいことに気づいて指摘することはあるが、**実際にどれだけ絞られているかは
+  数値で示せない(推測止まり)**。ここが次の observability-agent との違いになる
+
+## 3. observability-agent に同じことを聞く
+
+### 画面で入力する依頼文(observability-agent に)
+```text
+demo-app namespace で CPU のスロットリングが起きている Pod がないか調べてください。
+list_datasources で Prometheus のデータソース UID を確認し、
+query_prometheus で実際にクエリを実行して、結果と原因、推奨アクションを報告してください。
+```
+
+> gpt-oss は、実行まで明示しないと **PromQL を作っただけで止まりがち**。
+> `list_datasources` → `query_prometheus` と手順まで書いておくと確実。
+
+### 話すこと
+- UI のツール呼び出しの表示に注目。PromQL の生成を **promql-agent に頼んでいる**ことがある
+  = **エージェントがエージェントを道具として使う**(グラフ)
+- その PromQL を、grafana-mcp 経由で Prometheus に投げて**実際の数値**を取ってくる
+
+## 4. 結果と提案を確認する
+
+期待される報告:
+- `demo-cpu-throttle` の CPU スロットリング率が非常に高い
+- 原因は、CPU の limits(50m)が処理に対して小さすぎること
+- 推奨アクション: limits の引き上げ、または処理の見直し
+
+### 話すこと
+- **ログにもイベントにも出ないが、数値には出ている**。情報源を足すことで、見える範囲が広がる
+- 同じ質問でも、**どの道具を持つエージェントに聞くか**で答えが変わる。デモ4の
+  「ツールを絞る = 権限設計」の裏返しで、**ツールを足す = 見える範囲を広げる**
+- 修正はしていない。observability-agent の Grafana 権限は閲覧のみ(Viewer)にしてあるので、
+  ここでも「調べて報告するまで」がエージェントの役割
+
+### 参考: 手動で確認する場合(保険)
+エージェントの結果がぶれた場合に備え、同じ数値を手元でも出せるようにしておく。
+Cloud Shell では port-forward が使えないため、クラスタ内の一時 Pod から Prometheus の API を叩く。
+
+```bash
+# Prometheus の Service 名を確認(kube-prometheus-stack のリリース名 kps の場合)
+kubectl -n observability get svc | grep -E 'prometheus\s'
+PROM=http://kps-kube-prometheus-stack-prometheus.observability.svc:9090   # 上の結果に合わせる
+
+# スロットリング率(1 に近いほど強く絞られている)
+Q='sum(rate(container_cpu_cfs_throttled_periods_total{namespace="demo-app",container!=""}[5m])) by (pod) / sum(rate(container_cpu_cfs_periods_total{namespace="demo-app",container!=""}[5m])) by (pod)'
+
+p="prom-q-${RANDOM}"
+kubectl -n observability run "$p" --restart=Never --image=docker.io/curlimages/curl:8.10.1 -- \
+  curl -s "${PROM}/api/v1/query" --data-urlencode "query=${Q}" >/dev/null
+kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$p" --timeout=60s >/dev/null
+kubectl -n observability logs "$p" | jq -r '.data.result[] | "\(.metric.pod)\t\(.value[1])"'
+kubectl -n observability delete pod "$p" --wait=false >/dev/null
+```
+`demo-cpu-throttle-...` の値が 1 に近ければ、強くスロットリングされている。
+
+## 5. 後片付け
+
+```bash
+kubectl delete -f manifests/70-demo-cpu-throttle.yaml --ignore-not-found
+```
+
+---
+
 # デモの締め
 
 ### 話すこと
@@ -749,6 +869,9 @@ kubectl delete -f manifests/60-demo-hook-readonly.yaml --ignore-not-found
 - (デモ6 を行った場合)最後は「人が頼む」ことすら不要になり、イベントがエージェントを
   呼ぶ。ただし**どこまで任せるかは設計事項**。まずは自動で調べさせ、
   変更は人間が承認する、という順序が現実的
+- (デモ7 を行った場合)情報源がメトリクスにまで広がり、エージェント同士が仕事を
+  分担する(PromQL の生成は promql-agent に任せる)。**どの道具を持つエージェントに
+  聞くかで見える範囲が変わる**ので、エージェントの組み合わせ自体が設計対象になる
 
 ### 追加で言うとよい一言
 ```text

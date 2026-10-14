@@ -82,10 +82,11 @@
   <circle cx="60" cy="405" r="10" fill="#7c3aed"/><text x="60" y="409" text-anchor="middle" font-size="11" fill="#fff" font-weight="700">5</text>
   <text x="78" y="409" font-size="13.5" class="pur">グラフ</text>
   <text x="246" y="411" font-size="12" class="tb">誰に任せるか（役割分担）</text>
-  <text x="496" y="400" font-size="12" class="tb">agent-as-tool（<tspan class="mono" font-size="11">type: Agent</tspan>）で A2A 委譲</text>
-  <text x="496" y="419" font-size="11.5" class="t2">※ 静的な宣言的グラフ実行はロードマップ</text>
-  <rect x="876" y="393" width="120" height="24" rx="12" fill="#ffffff" stroke="#cbd5e1" stroke-dasharray="4 3"/>
-  <text x="936" y="409" text-anchor="middle" font-size="11.5" class="t2">現状紹介のみ</text>
+  <text x="496" y="393" font-size="12" class="tb">agent-as-tool（<tspan class="mono" font-size="11">type: Agent</tspan>）で A2A 委譲</text>
+  <text x="496" y="411" font-size="11.5" class="tb">例：observability-agent → promql-agent</text>
+  <text x="496" y="428" font-size="11" class="t2">※ 静的な宣言的グラフ実行はロードマップ</text>
+  <rect x="876" y="393" width="86" height="24" rx="12" fill="#f3e8ff" stroke="#7c3aed"/>
+  <text x="919" y="409" text-anchor="middle" font-size="11.5" class="pur">デモ7</text>
 
   <!-- ===== Legend ===== -->
   <rect x="30" y="452" width="14" height="14" rx="3" fill="#cbd5e1"/>

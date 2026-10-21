@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
         - name: web
-          image: nginx:1.27
+          # OKE(cri-o)は短縮名を解決できず ImageInspectError になるため、完全修飾で指定する。
+          image: docker.io/library/nginx:1.27
           ports:
             - containerPort: 80
 ---

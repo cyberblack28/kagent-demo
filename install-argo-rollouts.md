@@ -9,7 +9,10 @@ kagent 本体・OCI モデルの構成はそのまま使い、**Argo Rollouts �
 - 使う argo ツール(kagent-tool-server 内):
   `argo_verify_argo_rollouts_controller_install` / `argo_verify_kubectl_plugin_install` /
   `argo_rollouts_list` / `argo_set_rollout_image` / `argo_pause_rollout` /
-  `argo_promote_rollout` / `argo_check_plugin_logs`
+  `argo_promote_rollout`
+- **プリセットのままでは argo ツールが足りない**。既定で割り当てられている argo ツールは
+  `argo_verify_argo_rollouts_controller_install` だけで、昇格やイメージ更新ができない。
+  「4. kagent 側の準備」でツールを追加する(ツール自体は kagent-tool-server にある)。
 
 ---
 
@@ -61,26 +64,71 @@ kubectl get deploy,svc -n demo-app -l app=demo-rollout
 
 ---
 
-## 4. 動作確認
+## 4. kagent 側の準備(リハーサルで判明した2点)
+
+### 4-1. kagent-tools のメモリ上限を 1Gi に上げる
+既定の上限 512Mi では、エージェントが既存の Rollout を `kubectl apply` で更新したときに
+処理が進まず、約5分後に `signal: killed` で失敗する(新規作成は成功する)。
+UI ではツール呼び出しが「Call requested」のまま止まって見える。
+```bash
+kubectl -n kagent set resources deploy/kagent-tools --limits=memory=1Gi
+kubectl -n kagent rollout status deploy/kagent-tools --timeout=120s
+```
+> `create-oke-cluster.sh` で構築した場合は設定済み。`helm upgrade` すると 512Mi に戻る。
+
+### 4-2. エージェントに argo ツールを追加する
+ツールサーバーが argo ツールを提供していることを確認する:
+```bash
+kubectl get remotemcpserver -n kagent kagent-tool-server \
+  -o jsonpath='{.status.discoveredTools[*].name}' | tr ' ' '\n' | grep argo
+```
+エージェントの tools が1項目(`kagent-tool-server`)であることを確認してから、追加する。
+**1回だけ実行すること**(2回実行するとツール名が重複する)。
+```bash
+kubectl get agent argo-rollouts-conversion-agent -n kagent \
+  -o jsonpath='{range .spec.declarative.tools[*]}{.mcpServer.name}{"\n"}{end}'
+
+kubectl -n kagent patch agent argo-rollouts-conversion-agent --type=json -p '[
+  {"op":"add","path":"/spec/declarative/tools/0/mcpServer/toolNames/-","value":"argo_promote_rollout"},
+  {"op":"add","path":"/spec/declarative/tools/0/mcpServer/toolNames/-","value":"argo_set_rollout_image"},
+  {"op":"add","path":"/spec/declarative/tools/0/mcpServer/toolNames/-","value":"argo_rollouts_list"},
+  {"op":"add","path":"/spec/declarative/tools/0/mcpServer/toolNames/-","value":"argo_pause_rollout"},
+  {"op":"add","path":"/spec/declarative/tools/0/mcpServer/toolNames/-","value":"argo_verify_kubectl_plugin_install"}
+]'
+kubectl -n kagent rollout status deploy/argo-rollouts-conversion-agent --timeout=120s
+```
+> この変更も `helm upgrade` でプリセットが入れ直されると元に戻る。
+> UI の Agent Details に追加したツールが出ない場合は
+> `kubectl -n kagent rollout restart deploy/argo-rollouts-conversion-agent` で再起動する。
+
+---
+
+## 5. 動作確認
 ```bash
 # コントローラ Pod
 kubectl get pods -n argo-rollouts
 # CRD(Rollout など)が入ったか
 kubectl get crd | grep argoproj
+# エージェントのツール(4-2 で追加した argo ツールが並ぶこと)
+kubectl get agent argo-rollouts-conversion-agent -n kagent \
+  -o jsonpath='{range .spec.declarative.tools[*]}{.mcpServer.toolNames}{"\n"}{end}'
 ```
-kagent 側では、`argo-rollouts-conversion-agent` に
-「Argo Rollouts コントローラが入っているか確認して」と聞くと、
-`argo_verify_argo_rollouts_controller_install` で確認してくれます。
+kagent 側では、`argo-rollouts-conversion-agent` に次の2つを聞いて確認する:
+- 「Argo Rollouts コントローラが入っているか確認して」
+  → `argo_verify_argo_rollouts_controller_install`
+- 「argo_verify_kubectl_plugin_install で kubectl プラグインが使えるか確認して」
+  → ツールサーバー内で `kubectl argo rollouts version` が成功すること
+  (argo ツールはツールサーバー内のプラグインを使う。登壇者マシンのプラグインとは別)
 
 ---
 
-## 5. デモの実施
+## 6. デモの実施
 `demo.md` の「デモ5(追加): Deployment → Argo Rollouts カナリアへの移行」に従って進めます。
 保険用マニフェスト: `manifests/51-demo-rollout-canary.yaml`
 
 ---
 
-## 6. クリーンアップ
+## 7. クリーンアップ
 ```bash
 # デモ5 のワークロードを撤去(Rollout / Deployment / Service)
 kubectl -n demo-app delete rollout demo-rollout --ignore-not-found
@@ -94,4 +142,5 @@ kubectl delete namespace argo-rollouts
 
 > デモ5 は demo-web を触らないので、デモ1〜3 の状態には影響しません。
 > デモ5 をもう一度やるだけなら、`kubectl -n demo-app delete rollout demo-rollout` の後に
-> `kubectl apply -f manifests/50-demo-rollout-app.yaml` で blue の Deployment に戻せます。
+> `kubectl apply -f manifests/50-demo-rollout-app.yaml -l app=demo-rollout` で blue の Deployment に
+> 戻せます(`-l` で Deployment だけを適用し、LoadBalancer にした Service には触らない)。

@@ -1,5 +1,5 @@
 # デモ5(追加)のサンプルアプリ。カナリアの見栄えが良い Argo 公式デモアプリを使う。
-# - イメージは quay.io 完全修飾なので、OKE(Oracle Linux)の short-name 解決問題
+# - イメージは docker.io 完全修飾なので、OKE(Oracle Linux)の short-name 解決問題
 #   (nginx などの短縮名で出る ImageInspectError)を回避できる。
 # - rollouts-demo はバージョンごとに色が変わる(blue/yellow/green...)ので、
 #   カナリアの新旧混在が一目で分かる。listen ポートは 8080。

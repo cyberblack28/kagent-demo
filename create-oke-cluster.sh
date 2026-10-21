@@ -221,6 +221,10 @@ for a in $(kubectl -n "${KAGENT_NAMESPACE}" get agents.kagent.dev -o name 2>/dev
     -p '{"spec":{"declarative":{"modelConfig":"oci-genai-openai-compatible"}}}' >/dev/null 2>&1 || true
 done
 
+# kagent-tools の既定のメモリ上限(512Mi)では、既存の Argo Rollout を kubectl apply で
+# 更新すると処理が進まず、約5分後に signal: killed で失敗する(デモ5)。1Gi に上げておく。
+kubectl -n "${KAGENT_NAMESPACE}" set resources deploy/kagent-tools --limits=memory=1Gi >/dev/null 2>&1 || true
+
 kubectl -n "${KAGENT_NAMESPACE}" rollout restart deploy >/dev/null 2>&1 || true
 if ! kubectl -n "${KAGENT_NAMESPACE}" rollout status deploy --timeout=180s >/dev/null 2>&1; then
   echo "WARNING: some deployments did not become ready after restart."

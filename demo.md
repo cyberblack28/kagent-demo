@@ -461,7 +461,13 @@ kubectl get agents.kagent.dev demo-app-inspector -n kagent -o yaml \
 
 前提: `install-argo-rollouts.md` で Argo Rollouts コントローラ・kubectl プラグイン・
 サンプルアプリ `demo-rollout` を導入済み。
+**同ファイルの「4. kagent 側の準備」(kagent-tools のメモリ 1Gi・argo ツールの追加)も必須**。
+これが無いと、イメージ更新が `signal: killed` で失敗し、昇格もエージェントでは実行できない。
 使うエージェント: kagent UI で `argo-rollouts-conversion-agent` を選ぶ。
+
+> **エージェントの報告は必ず kubectl で裏取りする**。リハーサルでは、ツール呼び出しが
+> 失敗・未実行のままでも「25% で pause しています」と報告したことがあった。
+> 各ステップの後に `kubectl argo rollouts get rollout demo-rollout -n demo-app` で確かめる。
 
 > サンプルは Argo 公式の `docker.io/argoproj/rollouts-demo`(バージョンごとに色が変わる)。
 > イメージが完全修飾なので、OKE の short-name 問題(`nginx` などで出る ImageInspectError)を
@@ -497,16 +503,24 @@ rollouts-demo は、リクエストごとの応答を**色付きの四角**で�
 > ステージ上で待たないようにする。
 
 ```bash
-# Service を一時的に LoadBalancer にする
-kubectl -n demo-app patch svc demo-rollout -p '{"spec":{"type":"LoadBalancer"}}'
-
-# 接続元を自分のグローバルIPに制限する(推奨。<YOUR_IP> は実IPに置き換え)
-kubectl -n demo-app patch svc demo-rollout \
-  -p '{"spec":{"loadBalancerSourceRanges":["<YOUR_IP>/32"]}}'
+# Service を一時的に LoadBalancer にする。接続元の制限(<YOUR_IP> は自分のグローバルIP)と
+# OCI Flexible LB の最小シェイプも、必ず同じ1回のパッチで指定する
+kubectl -n demo-app patch svc demo-rollout -p '{"metadata":{"annotations":{"service.beta.kubernetes.io/oci-load-balancer-shape":"flexible","service.beta.kubernetes.io/oci-load-balancer-shape-flex-min":"10","service.beta.kubernetes.io/oci-load-balancer-shape-flex-max":"10"}},"spec":{"type":"LoadBalancer","loadBalancerSourceRanges":["<YOUR_IP>/32"]}}'
 
 # EXTERNAL-IP が付くまで待つ
 kubectl -n demo-app get svc demo-rollout -w
 ```
+
+> type と接続元を別々のパッチにすると、LB の作成中に設定が変わり、
+> `409 Conflict ... Token Collision` で `<pending>` のまま何時間も止まることがある。
+> その場合は type を戻しても直らない(再試行トークンが Service の UID に紐づくため)。
+> Service を作り直して UID を新しくしてから、上の1回のパッチをやり直す:
+> ```bash
+> kubectl -n demo-app delete svc demo-rollout
+> kubectl apply -f manifests/50-demo-rollout-app.yaml   # Service を ClusterIP で作り直す
+> ```
+> (1-b は手順2の移行より前に行うので、この apply で Deployment が増えることはない。
+> 移行後に作り直す場合は、Deployment が復活するので Rollout と二重にならないよう注意)
 
 ブラウザで `http://<EXTERNAL-IP>/` を開く。この時点では**すべて青**。
 
@@ -527,12 +541,21 @@ kubectl -n demo-app run curlbox --rm -it --restart=Never \
 ```text
 demo-app の demo-rollout を Argo Rollouts のカナリアに移行してください。
 既存の Deployment は削除し、同じ Pod(app=demo-rollout)を管理する Rollout を作成、
-戦略は 25% → 50% → 100% で各ステップの後に pause してください。
+戦略は 25% → pause → 50% → pause → 100% にしてください。
+Rollout の適用まであなたが実行し、Deployment の削除は実行前に確認してください。
 ```
+
+エージェントが削除の確認を求めてきたら、「はい、削除して構いません」と返す。
 
 ### 話すこと
 - Rollout の書き方を知らなくても、対話でカナリアを導入できる = 移行のハードルを肩代わり
+- **削除のような元に戻せない操作は、実行前に人へ確認する**(承認は人間)
 - Service(demo-rollout)は変えない。selector は app=demo-rollout のままで、Rollout の Pod に届く
+- 最初の版(revision 1)はカナリアを経ずに 100% で完了する(Argo Rollouts の仕様)。
+  ブラウザが青のままなのは正常で、カナリアは次のイメージ更新から始まる
+
+> 依頼文を「各ステップの後に pause」にすると、100% の後にも pause が入り、
+> 完了までの promote が3回になる。上の書き方なら2回で済む。
 
 ### 参考: 手動で行う場合(保険としてもこれを使う)
 ```bash
@@ -550,8 +573,18 @@ kubectl argo rollouts get rollout demo-rollout -n demo-app --watch
 
 ### 画面で入力する依頼文
 ```text
-demo-rollout のイメージを docker.io/argoproj/rollouts-demo:yellow に更新して、
-カナリアを開始してください。今どのステップで止まっているかも教えてください。
+demo-rollout のコンテナ rollouts-demo のイメージを docker.io/argoproj/rollouts-demo:yellow に
+argo_set_rollout_image で更新して、カナリアを開始してください。
+今どのステップで止まっているかも教えてください。
+```
+
+ツールを指定しないと、マニフェスト全体を `k8s_apply_manifest` で適用し直すことがある
+(kagent-tools のメモリが 512Mi のままだと、ここで止まる)。
+
+更新後、エージェントの報告を裏取りする。`revision:2` に yellow の Pod が1つあり、
+`Paused`・`Step: 1/5`・`SetWeight: 25` になっていれば開始している:
+```bash
+kubectl argo rollouts get rollout demo-rollout -n demo-app
 ```
 
 ### 話すこと
@@ -570,9 +603,13 @@ kubectl argo rollouts set image demo-rollout \
 
 ### 画面で入力する依頼文
 ```text
-カナリアの状態を確認して、問題なさそうなら次のステップへ昇格してください。
+カナリアの状態を argo_rollouts_list で確認して、問題なさそうなら
+argo_promote_rollout で次のステップへ昇格してください。
 100% になるまで、各ステップで状態を報告しながら進めてください。
 ```
+
+エージェントが「次へ進めますか？」と確認してきたら「はい」と返す。
+各昇格の後に裏取りする(50% は `Step: 3/5`・yellow 2つ、完了は `Healthy`・`Step: 5/5`・yellow 4つ)。
 
 ### 話すこと
 - `argo_rollouts_list` で状態確認 → `argo_promote_rollout` で 50% → 100% へ
@@ -589,13 +626,21 @@ kubectl argo rollouts status demo-rollout -n demo-app
 ## 5.(任意)異常時に巻き戻す
 
 ### 画面で入力する依頼文
+手順4で 100% に昇格する**前**(25% か 50% で止まっている間)に行う。
 ```text
-やっぱり新バージョンに問題があります。カナリアを中断して、元に戻してください。
+やっぱり新バージョンに問題があります。カナリアを中断して、
+argo_set_rollout_image でイメージを docker.io/argoproj/rollouts-demo:blue に戻してください。
 ```
 
 ### 話すこと
-- `argo_pause_rollout` で停止 → abort/rollback で安全側へ
+- `argo_pause_rollout` で停止 → `argo_set_rollout_image` で stable(blue)に戻して安全側へ
+  (エージェントのツールに abort は無いので、stable のイメージに戻すことで巻き戻す)
 - 「全体に広げる前に気づいて戻せる」= 段階リリースの価値
+
+### 参考: 手動で行う場合
+```bash
+kubectl argo rollouts abort demo-rollout -n demo-app
+```
 
 ## 6. 後片付け / 再演
 
@@ -604,7 +649,7 @@ kubectl argo rollouts get rollout demo-rollout -n demo-app   # 100% 完了の確
 
 # デモ5 をもう一度やる場合(Rollout を消して Deployment に戻す → blue に戻る):
 kubectl -n demo-app delete rollout demo-rollout --ignore-not-found
-kubectl apply -f manifests/50-demo-rollout-app.yaml
+kubectl apply -f manifests/50-demo-rollout-app.yaml -l app=demo-rollout   # Deployment だけ。LB にした Service は触らない
 ```
 
 **1-b で LoadBalancer にした場合は必ず戻す**(OCI Load Balancer の課金を止めるため):

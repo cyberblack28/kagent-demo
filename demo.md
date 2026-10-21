@@ -31,8 +31,12 @@
 
 前提:
 - `create-kind-cluster.sh`(または OKE 版)で環境構築済み
-- `kagent` UI に `kubectl port-forward -n kagent svc/kagent-ui 8080:8080` でアクセス済み
+- `kagent` UI にアクセス済み
+  - ClusterIP(既定)の場合: `kubectl port-forward -n kagent svc/kagent-ui 8080:8080`
+  - OKE で LoadBalancer 公開した場合: `kubectl get svc -n kagent kagent-ui` の EXTERNAL-IP
+    (OCI Cloud Shell では port-forward が使えないため、こちらを使う。接続元 CIDR は必ず絞る)
 - `demo-app` namespace に `demo-web` と `demo-crashloop` が存在する
+  (構築スクリプトが適用済み。作り直す・リセットする場合は「デモ1 > 0. 事前準備」を参照)
 - `manifests/30-demo-imagepull.yaml` がある(ImagePullBackOff 用)
 - `manifests/40-demo-service-mismatch.yaml` と `manifests/41-demo-service-restore.yaml` がある
 
@@ -50,6 +54,30 @@ kubectl get endpoints -n demo-app
 ---
 
 # デモ1: CrashLoopBackOff の原因調査と修復
+
+## 0. 事前準備(リセット)
+
+`demo-web`(デモ3で使う正常なアプリ)と `demo-crashloop`(デモ1の障害)は、
+構築スクリプト(`create-oke-cluster.sh` / `create-kind-cluster.sh`)が適用済みです。
+次の場合は手で適用し直します。
+
+- クラスタを作り直した、またはマニフェストを更新した
+- **デモ1をやり直す**(デモ1の修復で command が `sleep infinity` に書き換わり、正常に戻っているため)
+
+```bash
+kubectl apply -f manifests/10-demo-app.yaml -n demo-app
+kubectl apply -f manifests/20-demo-fault-crashloop.yaml -n demo-app
+kubectl get pods -n demo-app
+kubectl get endpoints -n demo-app
+```
+
+- `demo-web` の Pod 2つが `Running`、Endpoints に IP が2つ入っている
+- `demo-crashloop` が `CrashLoopBackOff`(直後は `Error`)になっている
+
+ここまで確認できたら、デモ1を始める。
+
+> **OKE の注意**: イメージ名は完全修飾(`docker.io/library/...`)で指定してある。
+> 短縮名(`nginx:1.27` など)だと cri-o が解決できず `ImageInspectError` になる。
 
 ## 1. 現状確認
 

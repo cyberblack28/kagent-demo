@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 960 720" width="960" height="720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="asat asad" font-family="ui-sans-serif, system-ui, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif">
+  <title id="asat">Agent Sandbox の構成</title>
+  <desc id="asad">AI フレームワーク層・Agent Sandbox 層・Kubernetes 層の3層。エージェント基盤が SDK で SandboxClaim を作り、Sandbox Router 経由で Sandbox に接続する。Agent Sandbox 層には SandboxClaim・SandboxWarmPool・Sandbox・SandboxTemplate の4つの CRD と agent-sandbox-controller、Sandbox Router がある。Kubernetes 層では Sandbox 1つにつき Pod・PVC・Service が1つずつ作られ、隔離は RuntimeClass（gVisor / Kata）に任せる。warm pool は起動済みの Pod を待機させておく。</desc>
+  <defs>
+    <marker id="asN" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#4b5563"/></marker>
+    <marker id="asP" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#7c3aed"/></marker>
+  </defs>
+  <style>
+    .pnl{fill:#f6f7f9;stroke:#d7dbe0;} .box{fill:#ffffff;stroke:#9ca3af;stroke-width:1.2;} .boxP{fill:#ffffff;stroke:#7c3aed;stroke-width:1.8;}
+    .t1{fill:#1a1d21;font-weight:700;} .t2{fill:#4b5563;} .mono{font-family:ui-monospace,'Cascadia Code',Consolas,monospace;}
+    .pur{fill:#7c3aed;font-weight:700;} .sep{stroke:#9ca3af;stroke-width:1.2;}
+    .lnN{stroke:#4b5563;stroke-width:1.8;fill:none;} .lnP{stroke:#7c3aed;stroke-width:1.8;fill:none;}
+    .brace{stroke:#4b5563;stroke-width:1.6;fill:none;}
+  </style>
+  <rect x="0" y="0" width="960" height="720" fill="#ffffff"/>
+
+  <!-- layer separators -->
+  <line class="sep" x1="30" y1="226" x2="790" y2="226"/>
+  <line class="sep" x1="30" y1="466" x2="790" y2="466"/>
+
+  <!-- ===== AI フレームワーク層 ===== -->
+  <rect class="pnl" x="40" y="40" width="740" height="168" rx="10"/>
+  <text x="410" y="70" text-anchor="middle" font-size="16" class="t1">エージェント基盤（OpenHands / LangChain DeepAgents など）</text>
+  <rect class="box" x="70" y="104" width="300" height="70" rx="6"/>
+  <text x="220" y="134" text-anchor="middle" font-size="15" class="t1">エージェントのロジック</text>
+  <text x="220" y="157" text-anchor="middle" font-size="12" class="t2">ツール呼び出し・コード実行の依頼</text>
+  <rect class="box" x="430" y="104" width="320" height="70" rx="6"/>
+  <text x="590" y="134" text-anchor="middle" font-size="15" class="t1">SDK（Python / Go）</text>
+  <text x="590" y="157" text-anchor="middle" font-size="12" class="t2">Sandbox の要求・接続</text>
+  <line class="lnN" x1="370" y1="139" x2="426" y2="139" marker-end="url(#asN)"/>
+
+  <!-- ===== Agent Sandbox 層 ===== -->
+  <rect class="pnl" x="40" y="244" width="460" height="216" rx="10"/>
+  <text x="490" y="443" text-anchor="end" font-size="10.5" class="t2">CRD：Sandbox は <tspan class="mono">agents.x-k8s.io</tspan></text>
+  <text x="490" y="456" text-anchor="end" font-size="10.5" class="t2">ほかは <tspan class="mono">extensions.agents.x-k8s.io</tspan></text>
+
+  <rect class="box" x="60" y="284" width="200" height="54" rx="6"/>
+  <text x="160" y="306" text-anchor="middle" font-size="14" class="t1 mono">SandboxClaim</text>
+  <text x="160" y="326" text-anchor="middle" font-size="11.5" class="t2">利用者が作成</text>
+  <rect class="box" x="280" y="284" width="200" height="54" rx="6"/>
+  <text x="380" y="306" text-anchor="middle" font-size="14" class="t1 mono">SandboxWarmPool</text>
+  <text x="380" y="326" text-anchor="middle" font-size="11.5" class="t2">起動済み Sandbox のプール</text>
+
+  <rect class="boxP" x="60" y="376" width="200" height="54" rx="6"/>
+  <text x="160" y="398" text-anchor="middle" font-size="14" class="pur mono">Sandbox</text>
+  <text x="160" y="418" text-anchor="middle" font-size="11.5" class="t2">Pod＋PVC＋Service</text>
+  <rect class="box" x="280" y="376" width="200" height="54" rx="6"/>
+  <text x="380" y="398" text-anchor="middle" font-size="14" class="t1 mono">SandboxTemplate</text>
+  <text x="380" y="418" text-anchor="middle" font-size="11.5" class="t2">Pod テンプレート＋ポリシー</text>
+
+  <line class="lnN" x1="160" y1="338" x2="160" y2="372" marker-end="url(#asN)"/>
+  <text x="168" y="360" font-size="11" class="t2">払い出し</text>
+  <line class="lnN" x1="380" y1="338" x2="380" y2="372" marker-end="url(#asN)"/>
+  <text x="388" y="360" font-size="11" class="t2">参照</text>
+
+  <rect class="box" x="530" y="284" width="230" height="54" rx="6"/>
+  <text x="645" y="306" text-anchor="middle" font-size="14" class="t1">Sandbox Router</text>
+  <text x="645" y="326" text-anchor="middle" font-size="11.5" class="t2">Sandbox へリクエストを振り分け</text>
+  <rect class="box" x="600" y="376" width="160" height="54" rx="6"/>
+  <text x="680" y="397" text-anchor="middle" font-size="11.5" class="t1 mono">agent-sandbox-</text>
+  <text x="680" y="413" text-anchor="middle" font-size="11.5" class="t1 mono">controller</text>
+  <text x="680" y="426" text-anchor="middle" font-size="9.5" class="t2">CRD を見て Pod などを作る</text>
+
+  <!-- SDK -> SandboxClaim (control) -->
+  <path class="lnP" d="M480 174 V258 H160 V280" marker-end="url(#asP)"/>
+  <text x="300" y="252" text-anchor="middle" font-size="11" class="pur">Claim を作成</text>
+  <!-- SDK -> Router (data) -->
+  <line class="lnN" x1="645" y1="174" x2="645" y2="280" marker-end="url(#asN)"/>
+  <text x="653" y="252" font-size="11" class="t2">接続</text>
+
+  <!-- ===== Kubernetes 層 ===== -->
+  <rect x="50" y="484" width="500" height="206" rx="10" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.4" stroke-dasharray="6 4"/>
+  <text x="538" y="502" text-anchor="end" font-size="12" class="pur">Sandbox 1つ分（1:1）</text>
+
+  <rect class="box" x="65" y="512" width="235" height="166" rx="8"/>
+  <text x="182" y="534" text-anchor="middle" font-size="14" class="t1">Pod</text>
+  <rect x="80" y="546" width="205" height="50" rx="6" fill="#7c3aed"/>
+  <text x="182" y="568" text-anchor="middle" font-size="13" fill="#ffffff" font-weight="700">エージェントの実行環境</text>
+  <text x="182" y="586" text-anchor="middle" font-size="11" fill="#ffffff">コード・コマンドを実行</text>
+  <rect class="box" x="80" y="608" width="205" height="56" rx="6"/>
+  <text x="182" y="630" text-anchor="middle" font-size="12.5" class="t1">RuntimeClass</text>
+  <text x="182" y="650" text-anchor="middle" font-size="11.5" class="t2">gVisor / Kata で隔離</text>
+
+  <rect class="box" x="320" y="512" width="215" height="76" rx="8"/>
+  <text x="427" y="542" text-anchor="middle" font-size="14" class="t1">PVC</text>
+  <text x="427" y="564" text-anchor="middle" font-size="11.5" class="t2">休眠中もファイルを保持</text>
+  <rect class="box" x="320" y="602" width="215" height="76" rx="8"/>
+  <text x="427" y="632" text-anchor="middle" font-size="14" class="t1">Service</text>
+  <text x="427" y="654" text-anchor="middle" font-size="11.5" class="t2">Sandbox ごとの宛先</text>
+  <line class="lnN" x1="300" y1="550" x2="318" y2="550"/>
+  <line class="lnN" x1="300" y1="640" x2="318" y2="640"/>
+
+  <!-- Sandbox -> its Pod/PVC/Service -->
+  <line class="lnP" x1="160" y1="430" x2="160" y2="508" marker-end="url(#asP)"/>
+  <!-- Router -> Service -->
+  <path class="lnN" d="M566 338 V640 H539" marker-end="url(#asN)"/>
+
+  <!-- warm pool -->
+  <rect x="590" y="512" width="170" height="166" rx="8" fill="#ffffff" stroke="#9ca3af" stroke-width="1.4" stroke-dasharray="5 4"/>
+  <text x="675" y="566" text-anchor="middle" font-size="14" class="t1">起動済みの Pod</text>
+  <text x="675" y="590" text-anchor="middle" font-size="11.5" class="t2">warm pool で待機</text>
+  <text x="675" y="610" text-anchor="middle" font-size="11.5" class="t2">Claim が来たら</text>
+  <text x="675" y="628" text-anchor="middle" font-size="11.5" class="t2">すぐに払い出す</text>
+  <!-- controller -> pods -->
+  <line class="lnN" x1="680" y1="430" x2="680" y2="508" marker-end="url(#asN)"/>
+  <text x="688" y="480" font-size="11" class="t2">作成・管理</text>
+
+  <!-- ===== layer labels ===== -->
+  <path class="brace" d="M800 44 q10 0 10 12 v58 q0 10 10 10 q-10 0 -10 10 v58 q0 12 -10 12"/>
+  <text x="830" y="130" font-size="15" class="t1">AI フレームワーク層</text>
+  <path class="brace" d="M800 248 q10 0 10 12 v78 q0 10 10 10 q-10 0 -10 10 v78 q0 12 -10 12"/>
+  <text x="830" y="342" font-size="15" class="t1">Agent Sandbox</text>
+  <text x="830" y="362" font-size="15" class="t1">層</text>
+  <path class="brace" d="M800 488 q10 0 10 12 v78 q0 10 10 10 q-10 0 -10 10 v78 q0 12 -10 12"/>
+  <text x="830" y="594" font-size="15" class="t1">Kubernetes 層</text>
+</svg>

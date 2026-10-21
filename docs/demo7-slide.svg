@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="s7t s7d" font-family="ui-sans-serif, system-ui, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif">
+  <title id="s7t">デモ7: メトリクスにしか出ない障害を調べる</title>
+  <desc id="s7d">k8s-agent と observability-agent に同じ趣旨の依頼をし、見える範囲の違いを示すデモのスライド。左に2つの依頼文と結果、右に OCI Generative AI・kagent(k8s-agent、observability-agent、promql-agent、kagent-tool-server、grafana-mcp)・OCI Kubernetes Engine(demo-cpu-throttle、Grafana、Prometheus)の構成を示す。</desc>
+  <defs>
+    <marker id="sN" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#6b7280"/></marker>
+    <marker id="sP" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#7c3aed"/></marker>
+  </defs>
+  <style>
+    .t1{fill:#1a1d21;font-weight:700;} .t2{fill:#6b7280;} .tb{fill:#1a1d21;}
+    .mono{font-family:ui-monospace,'Cascadia Code',Consolas,monospace;}
+    .ok{fill:#16a34a;font-weight:700;} .bad{fill:#dc2626;font-weight:700;} .pur{fill:#7c3aed;font-weight:700;}
+    .pnl{fill:#f6f7f9;stroke:#e2e5ea;} .box{fill:#ffffff;stroke:#d7dbe0;}
+    .lnN{stroke:#6b7280;stroke-width:1.8;} .lnP{stroke:#7c3aed;stroke-width:1.8;}
+  </style>
+  <rect x="0" y="0" width="1280" height="720" fill="#ffffff"/>
+
+  <!-- ===== Title ===== -->
+  <text x="40" y="62" font-size="26" class="t1">デモ7: メトリクスにしか出ない障害を調べる</text>
+  <text x="40" y="94" font-size="15" class="t2">同じ趣旨の質問を、持っている道具が違う2つのエージェントに投げ比べる</text>
+
+  <!-- ===== Left: Card 1 (k8s-agent) ===== -->
+  <rect class="pnl" x="40" y="124" width="670" height="156" rx="12"/>
+  <rect x="60" y="142" width="112" height="28" rx="14" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="116" y="161" text-anchor="middle" font-size="13" class="t1">k8s-agent</text>
+  <text x="186" y="161" font-size="13.5" class="t2">① まず、いつものエージェントに聞く</text>
+  <rect class="box" x="60" y="182" width="630" height="54" rx="8"/>
+  <text x="76" y="205" font-size="14" class="tb">demo-app namespace で、動作が遅い・性能が出ていない Pod がないか</text>
+  <text x="76" y="225" font-size="14" class="tb">調べてください。</text>
+  <text x="60" y="264" font-size="14" class="t2">→ describe / logs / events を見ても、<tspan class="bad">異常は見当たらない</tspan></text>
+
+  <!-- ===== Left: Card 2 (observability-agent) ===== -->
+  <rect class="pnl" x="40" y="298" width="670" height="312" rx="12"/>
+  <rect x="60" y="316" width="196" height="28" rx="14" fill="#f3e8ff" stroke="#7c3aed"/>
+  <text x="158" y="335" text-anchor="middle" font-size="13" class="pur">observability-agent</text>
+  <text x="270" y="335" font-size="13.5" class="t2">② メトリクスを読めるエージェントに聞く</text>
+  <rect class="box" x="60" y="356" width="630" height="114" rx="8"/>
+  <text x="76" y="380" font-size="14" class="tb">demo-app namespace で CPU のスロットリングが起きている Pod がないか</text>
+  <text x="76" y="402" font-size="14" class="tb">調べてください。<tspan class="mono" font-size="13">list_datasources</tspan> で Prometheus のデータソース UID を</text>
+  <text x="76" y="424" font-size="14" class="tb">確認し、<tspan class="mono" font-size="13">query_prometheus</tspan> で実際にクエリを実行して、</text>
+  <text x="76" y="446" font-size="14" class="tb">結果と原因、推奨アクションを報告してください。</text>
+  <text x="76" y="463" font-size="11" class="t2">※ 実行まで明示しないと、PromQL を作っただけで止まりがち</text>
+
+  <text x="60" y="500" font-size="14" class="t2">→ <tspan class="pur">PromQL の生成を promql-agent に委譲</tspan>し、Prometheus を照会</text>
+  <text x="60" y="526" font-size="14" class="t2">→ <tspan class="bad">CPU スロットリング</tspan>を特定。原因は limits.cpu 50m</text>
+  <text x="60" y="552" font-size="14" class="t2">→ <tspan class="ok">limits の引き上げを提案</tspan>（Grafana は閲覧権限のみ。変更はしない）</text>
+  <text x="60" y="588" font-size="12.5" class="t2">ログにもイベントにも出ないが、数値には出ている</text>
+
+  <!-- ===== Right: Architecture ===== -->
+  <!-- OCI Generative AI -->
+  <rect class="box" x="800" y="124" width="400" height="46" rx="8"/>
+  <text x="1000" y="144" text-anchor="middle" font-size="14" class="t1">OCI Generative AI</text>
+  <text x="1000" y="161" text-anchor="middle" font-size="11" class="t2 mono">openai.gpt-oss-120b</text>
+  <line class="lnN" x1="1000" y1="170" x2="1000" y2="192" marker-end="url(#sN)"/>
+
+  <!-- kagent -->
+  <rect class="pnl" x="760" y="196" width="480" height="188" rx="12"/>
+  <text x="776" y="216" font-size="13" class="t1">kagent</text>
+  <rect x="780" y="226" width="160" height="40" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="860" y="251" text-anchor="middle" font-size="13" class="t1">k8s-agent</text>
+  <rect x="980" y="226" width="240" height="40" rx="8" fill="#ffffff" stroke="#7c3aed"/>
+  <text x="1100" y="251" text-anchor="middle" font-size="13" class="pur">observability-agent</text>
+
+  <rect class="box" x="780" y="326" width="160" height="40" rx="8"/>
+  <text x="860" y="351" text-anchor="middle" font-size="11.5" class="t1 mono">kagent-tool-server</text>
+  <rect x="980" y="326" width="110" height="40" rx="8" fill="#ffffff" stroke="#7c3aed"/>
+  <text x="1035" y="351" text-anchor="middle" font-size="12" class="pur mono">promql-agent</text>
+  <rect class="box" x="1110" y="326" width="110" height="40" rx="8"/>
+  <text x="1165" y="351" text-anchor="middle" font-size="12" class="t1 mono">grafana-mcp</text>
+
+  <line class="lnN" x1="860" y1="266" x2="860" y2="322" marker-end="url(#sN)"/>
+  <text x="868" y="299" font-size="11" class="t2">MCP</text>
+  <line class="lnP" x1="1035" y1="266" x2="1035" y2="322" marker-end="url(#sP)"/>
+  <text x="1043" y="299" font-size="11" class="pur">A2A</text>
+  <line class="lnN" x1="1165" y1="266" x2="1165" y2="322" marker-end="url(#sN)"/>
+  <text x="1173" y="299" font-size="11" class="t2">MCP</text>
+
+  <!-- OCI Kubernetes Engine -->
+  <rect class="pnl" x="760" y="404" width="480" height="206" rx="12"/>
+  <text x="1012" y="424" text-anchor="middle" font-size="13" class="t1">OCI Kubernetes Engine</text>
+
+  <rect class="box" x="780" y="434" width="180" height="164" rx="8"/>
+  <text x="792" y="452" font-size="11" class="t2 mono">demo-app</text>
+  <text x="870" y="478" text-anchor="middle" font-size="10.5" class="t2">Events・ログには出ない</text>
+  <text x="870" y="497" text-anchor="middle" font-size="10.5" class="bad">でも CPU は絞られている</text>
+  <rect x="796" y="514" width="148" height="70" rx="8" fill="#ffffff" stroke="#dc2626"/>
+  <text x="870" y="537" text-anchor="middle" font-size="12" class="t1 mono">demo-cpu-throttle</text>
+  <text x="870" y="555" text-anchor="middle" font-size="10.5" class="bad mono">limits.cpu: 50m</text>
+  <text x="870" y="573" text-anchor="middle" font-size="10" class="t2">Running ・ 再起動 0</text>
+
+  <rect class="box" x="980" y="434" width="240" height="164" rx="8"/>
+  <text x="992" y="452" font-size="11" class="t2 mono">observability</text>
+  <rect x="1000" y="464" width="200" height="36" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1100" y="487" text-anchor="middle" font-size="12.5" class="t1">Grafana</text>
+  <rect x="1000" y="546" width="200" height="36" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1100" y="569" text-anchor="middle" font-size="12.5" class="t1">Prometheus</text>
+  <line class="lnN" x1="1100" y1="500" x2="1100" y2="542" marker-end="url(#sN)"/>
+  <text x="1108" y="526" font-size="10" class="t2">データソース</text>
+
+  <!-- cross-container arrows -->
+  <line class="lnN" x1="860" y1="366" x2="860" y2="430" marker-end="url(#sN)"/>
+  <text x="868" y="398" font-size="10" class="t2">describe / logs / events</text>
+  <line class="lnN" x1="1165" y1="366" x2="1165" y2="460" marker-end="url(#sN)"/>
+  <text x="1173" y="398" font-size="10" class="t2">照会</text>
+  <line class="lnN" x1="944" y1="564" x2="994" y2="564" marker-end="url(#sN)"/>
+  <text x="970" y="556" font-size="9.5" class="t2" text-anchor="middle">メトリクス</text>
+
+  <!-- ===== Bottom message ===== -->
+  <rect x="40" y="632" width="1200" height="64" rx="12" fill="#f6f7f9" stroke="#e2e5ea"/>
+  <text x="62" y="660" font-size="15" class="t1">同じ質問でも、<tspan class="pur">持っている道具で見える範囲が変わる</tspan></text>
+  <text x="62" y="684" font-size="13" class="t2">原因の当たりをつけるのは速い。ただし数値（二重計上など）は人が確かめる</text>
+</svg>

@@ -15,5 +15,6 @@ spec:
     spec:
       containers:
         - name: crash
-          image: busybox:1.36
+          # OKE(cri-o)の短縮名問題を避けるため、完全修飾で指定する。
+          image: docker.io/library/busybox:1.36
           command: ["sh", "-c", "echo 'intentional crash for demo'; exit 1"]

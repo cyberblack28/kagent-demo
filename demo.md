@@ -164,7 +164,7 @@ Events を確認して、なぜ起動できないのかを要約してくださ�
 ### 画面で入力する依頼文
 ```text
 原因は存在しないイメージタグですね。
-demo-imagepull Deployment のイメージを nginx:1.27-alpine に変更して修復し、
+demo-imagepull Deployment のイメージを docker.io/library/nginx:1.27-alpine に変更して修復し、
 Pod が Running になったことを確認して報告してください。
 ```
 
@@ -176,7 +176,7 @@ Pod が Running になったことを確認して報告してください。
 ### 参考: 手動で行う場合のコマンド(エージェントが実行する内容と同等)
 ```bash
 kubectl set image deployment/demo-imagepull -n demo-app \
-  demo-imagepull=nginx:1.27-alpine
+  demo-imagepull=docker.io/library/nginx:1.27-alpine
 kubectl rollout status deployment/demo-imagepull -n demo-app
 ```
 

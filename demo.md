@@ -628,10 +628,22 @@ kubectl argo rollouts set image demo-rollout \
 カナリアの状態を argo_rollouts_list で確認して、問題なさそうなら
 argo_promote_rollout で次のステップへ昇格してください。
 100% になるまで、各ステップで状態を報告しながら進めてください。
+100% になったら、移行前の Deployment demo-rollout が残っていないか確認し、
+残っていれば k8s_delete_resource で削除してください。
 ```
 
-エージェントが「次へ進めますか？」と確認してきたら「はい」と返す。
+エージェントが「次へ進めますか？」「削除してよいですか？」と確認してきたら「はい」と返す。
 各昇格の後に裏取りする(50% は `Step: 3/5`・yellow 2つ、完了は `Healthy`・`Step: 5/5`・yellow 4つ)。
+
+> 手順2でエージェントが削除の確認待ちのまま止まると、Deployment とその blue の
+> ReplicaSet が残る。Service は両方の Pod に振り分けるので、100% にしても青が混ざり続ける。
+
+完了後、Deployment が無いことを確認する:
+```bash
+kubectl get deploy,rs -n demo-app -l app=demo-rollout
+```
+`deployment.apps/demo-rollout` が出なければよい。Rollout 自身の旧版(blue)の ReplicaSet は
+Pod 0 個で残るが、これは正常(手順5のロールバックで再利用するので消さない)。
 
 ### 話すこと
 - `argo_rollouts_list` で状態確認 → `argo_promote_rollout` で 50% → 100% へ
@@ -643,6 +655,7 @@ argo_promote_rollout で次のステップへ昇格してください。
 ```bash
 kubectl argo rollouts promote demo-rollout -n demo-app
 kubectl argo rollouts status demo-rollout -n demo-app
+kubectl -n demo-app delete deployment demo-rollout --ignore-not-found   # 移行前の Deployment が残っていれば消す
 ```
 
 ## 5. 問題が見つかったので blue にロールバックする

@@ -502,25 +502,37 @@ rollouts-demo は、リクエストごとの応答を**色付きの四角**で�
 > **本番前に済ませておくこと**。OCI Load Balancer に EXTERNAL-IP が付くまで数分かかるため、
 > ステージ上で待たないようにする。
 
+**① LoadBalancer にして、EXTERNAL-IP が付くまで待つ**(OCI Flexible LB の最小シェイプを指定)
 ```bash
-# Service を一時的に LoadBalancer にする。接続元の制限(<YOUR_IP> は自分のグローバルIP)と
-# OCI Flexible LB の最小シェイプも、必ず同じ1回のパッチで指定する
-kubectl -n demo-app patch svc demo-rollout -p '{"metadata":{"annotations":{"service.beta.kubernetes.io/oci-load-balancer-shape":"flexible","service.beta.kubernetes.io/oci-load-balancer-shape-flex-min":"10","service.beta.kubernetes.io/oci-load-balancer-shape-flex-max":"10"}},"spec":{"type":"LoadBalancer","loadBalancerSourceRanges":["<YOUR_IP>/32"]}}'
-
-# EXTERNAL-IP が付くまで待つ
-kubectl -n demo-app get svc demo-rollout -w
+kubectl -n demo-app patch svc demo-rollout -p '{"metadata":{"annotations":{"service.beta.kubernetes.io/oci-load-balancer-shape":"flexible","service.beta.kubernetes.io/oci-load-balancer-shape-flex-min":"10","service.beta.kubernetes.io/oci-load-balancer-shape-flex-max":"10"}},"spec":{"type":"LoadBalancer"}}'
+kubectl -n demo-app get svc demo-rollout -w     # EXTERNAL-IP が付いたら Ctrl+C
 ```
 
-> type と接続元を別々のパッチにすると、LB の作成中に設定が変わり、
-> `409 Conflict ... Token Collision` で `<pending>` のまま何時間も止まることがある。
+> **EXTERNAL-IP が付くまでは、この Service に追加のパッチを当てない**。LB の作成中に
+> 設定が変わると、`409 Conflict ... Token Collision` で `<pending>` のまま何時間も止まる。
 > その場合は type を戻しても直らない(再試行トークンが Service の UID に紐づくため)。
-> Service を作り直して UID を新しくしてから、上の1回のパッチをやり直す:
+> Service を作り直して UID を新しくしてから、①をやり直す:
 > ```bash
 > kubectl -n demo-app delete svc demo-rollout
 > kubectl apply -f manifests/50-demo-rollout-app.yaml   # Service を ClusterIP で作り直す
 > ```
 > (1-b は手順2の移行より前に行うので、この apply で Deployment が増えることはない。
 > 移行後に作り直す場合は、Deployment が復活するので Rollout と二重にならないよう注意)
+
+**② ブラウザを使う PC のグローバル IP を調べる**
+
+PC のブラウザで https://ifconfig.me を開き、表示された IP を控える。
+Cloud Shell で `curl ifconfig.me` を実行すると Cloud Shell 自身の IP が出るので、使わないこと。
+
+**③ 接続元を自分の IP に絞る**(EXTERNAL-IP が付いた後なので、作成中の変更にはならない)
+```bash
+MYIP=<②で控えたIP>
+kubectl -n demo-app patch svc demo-rollout -p "{\"spec\":{\"loadBalancerSourceRanges\":[\"${MYIP}/32\"]}}"
+kubectl -n demo-app get svc demo-rollout -o jsonpath='{.spec.loadBalancerSourceRanges}{"\n"}'
+```
+
+> ①〜③の間の数分は、アプリが誰からでも見える(中身は色を返すだけのデモアプリ)。
+> 会場で Wi-Fi が変わるなどして IP が変わったら、②③をやり直す。
 
 ブラウザで `http://<EXTERNAL-IP>/` を開く。この時点では**すべて青**。
 

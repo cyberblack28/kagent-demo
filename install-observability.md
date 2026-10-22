@@ -335,13 +335,23 @@ observability-agent を動かすだけなら Grafana の画面は不要です。
 port-forward が使えないので、デモ5の手順1-b と同じく **一時的に LoadBalancer にして接続元を絞ります**。
 
 ```bash
-kubectl -n observability patch svc kps-grafana -p '{"spec":{"type":"LoadBalancer"}}'
-kubectl -n observability patch svc kps-grafana \
-  -p '{"spec":{"loadBalancerSourceRanges":["<YOUR_IP>/32"]}}'   # 自分のグローバル IP に置き換え
-kubectl -n observability get svc kps-grafana -w                    # EXTERNAL-IP を待つ
+# ① LoadBalancer にして、EXTERNAL-IP が付くまで待つ(付くまでは追加のパッチを当てない)
+kubectl -n observability patch svc kps-grafana -p '{"metadata":{"annotations":{"service.beta.kubernetes.io/oci-load-balancer-shape":"flexible","service.beta.kubernetes.io/oci-load-balancer-shape-flex-min":"10","service.beta.kubernetes.io/oci-load-balancer-shape-flex-max":"10"}},"spec":{"type":"LoadBalancer"}}'
+kubectl -n observability get svc kps-grafana -w     # EXTERNAL-IP が付いたら Ctrl+C
+
+# ② PC のブラウザで https://ifconfig.me を開き、自分のグローバル IP を控える
+#    (Cloud Shell の curl では Cloud Shell 自身の IP が出るので使わない)
+
+# ③ すぐに接続元を絞る
+MYIP=<②で控えたIP>
+kubectl -n observability patch svc kps-grafana -p "{\"spec\":{\"loadBalancerSourceRanges\":[\"${MYIP}/32\"]}}"
 ```
-`http://<EXTERNAL-IP>/` を開き、手順2で取得した管理者アカウントでログインする。
-管理者パスワードが既定値のままなので、**接続元の制限は必須**です。
+③を済ませてから `http://<EXTERNAL-IP>/` を開き、手順2で取得した管理者アカウントでログインする。
+管理者パスワードが既定値のままなので、**接続元の制限は必須**です。①〜③は間を空けずに続けて行う。
+
+> EXTERNAL-IP が付く前に別のパッチを当てると、`409 Conflict ... Token Collision` で
+> `<pending>` のまま止まることがある。type を戻しても直らず、Service を作り直して
+> UID を新しくする必要がある(詳しくは `demo.md` デモ5の手順1-b)。
 
 **見終わったら必ず戻す**(OCI Load Balancer の課金を止めるため):
 ```bash

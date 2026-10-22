@@ -536,6 +536,11 @@ kubectl -n demo-app get svc demo-rollout -o jsonpath='{.spec.loadBalancerSourceR
 
 ブラウザで `http://<EXTERNAL-IP>/` を開く。この時点では**すべて青**。
 
+> **画面の LATENCY を少し上げておく**。応答が速いままだと、ブラウザは1本の接続を
+> 使い回すため、カナリア中でも1つの Pod の色しか出ないことがある。LATENCY を上げると
+> 同時に複数の接続を張るので、各 Pod に振り分けられて色が混ざって見える。
+> (Start / Stop はリクエストの送信を止める・再開するボタン。Stop で画面を止めて説明できる)
+
 ### 話すこと
 - 今は全部青 = 全 Pod が blue。この画面を出したまま、次のカナリアを見てもらう
 
@@ -585,13 +590,17 @@ kubectl argo rollouts get rollout demo-rollout -n demo-app --watch
 
 ### 画面で入力する依頼文
 ```text
-demo-rollout のコンテナ rollouts-demo のイメージを docker.io/argoproj/rollouts-demo:yellow に
-argo_set_rollout_image で更新して、カナリアを開始してください。
-今どのステップで止まっているかも教えてください。
+demo-rollout のイメージを argo_set_rollout_image で更新して、カナリアを開始してください。
+container_image には rollouts-demo=docker.io/argoproj/rollouts-demo:yellow を指定してください。
+更新後に argo_rollouts_list で状態を確認してから、今どのステップで止まっているかを報告してください。
 ```
 
-ツールを指定しないと、マニフェスト全体を `k8s_apply_manifest` で適用し直すことがある
-(kagent-tools のメモリが 512Mi のままだと、ここで止まる)。
+- ツールを指定しないと、マニフェスト全体を `k8s_apply_manifest` で適用し直すことがある
+  (kagent-tools のメモリが 512Mi のままだと、ここで止まる)
+- `container_image` は `コンテナ名=イメージ` の形が必要。イメージ名だけだと
+  `exit status 1` で失敗する(エージェントが YAML を読んで自力で直すこともある)
+- 更新後の確認を指示しないと、**更新前に読んだ情報のまま「カナリア完了」と誤って報告する**
+  ことがある(リハーサルで発生)
 
 更新後、エージェントの報告を裏取りする。`revision:2` に yellow の Pod が1つあり、
 `Paused`・`Step: 1/5`・`SetWeight: 25` になっていれば開始している:
@@ -602,6 +611,7 @@ kubectl argo rollouts get rollout demo-rollout -n demo-app
 ### 話すこと
 - エージェントが `argo_set_rollout_image` で更新 → 25% カナリアで pause
 - **ブラウザ画面(1-b)に注目**。青一色だったところに**黄が約1/4混ざり始める**
+  (見えにくいときは LATENCY を上げる。それでも駄目なら「代替」の curl で比率を見せる)
 - --watch 画面でも「新旧の Pod が混在」する様子を見せる(blue と yellow が混じる)
 - ここで一気に全部を替えないのがカナリアの肝
 
@@ -627,7 +637,7 @@ argo_promote_rollout で次のステップへ昇格してください。
 - `argo_rollouts_list` で状態確認 → `argo_promote_rollout` で 50% → 100% へ
 - ブラウザ画面(1-b)で、黄の比率が **1/4 → 1/2 → 全部**に増えていくのを見せる
 - **promote(昇格)＝人間の“承認”**。まさに「意図と承認は人間、実行はエージェント」
-- 段階を踏むので、途中で問題が見えたら止められる(次のダメ押しへ)
+- 段階を踏むので、途中で問題が見えたら止められる
 
 ### 参考: 手動で行う場合
 ```bash
@@ -635,29 +645,48 @@ kubectl argo rollouts promote demo-rollout -n demo-app
 kubectl argo rollouts status demo-rollout -n demo-app
 ```
 
-## 5.(任意)異常時に巻き戻す
+## 5. 問題が見つかったので blue にロールバックする
+
+手順4で yellow が 100% になった(カナリア完了)後に行う。
 
 ### 画面で入力する依頼文
-手順4で 100% に昇格する**前**(25% か 50% で止まっている間)に行う。
 ```text
-やっぱり新バージョンに問題があります。カナリアを中断して、
-argo_set_rollout_image でイメージを docker.io/argoproj/rollouts-demo:blue に戻してください。
+新バージョン(yellow)に問題が見つかりました。blue にロールバックしてください。
+argo_set_rollout_image で container_image を rollouts-demo=docker.io/argoproj/rollouts-demo:blue にし、
+緊急なので argo_promote_rollout を full=true で実行して、段階を踏まずに全台を blue に戻してください。
+最後に argo_rollouts_list で状態を確認して報告してください。
 ```
 
+裏取りする。`Healthy`・`Step: 5/5`・`blue (stable)` で、blue の Pod が4つあれば完了:
+```bash
+kubectl argo rollouts get rollout demo-rollout -n demo-app
+```
+ブラウザは青一色に戻る。
+
+> `full=true` を付けないと、blue が「新しいリリース」として 25% からカナリアを始め、
+> 25% で止まる(黄色が3/4残る)。完了済みの版から戻すときは、Argo Rollouts でも
+> 段階を踏むのが既定の動き。
+
 ### 話すこと
-- `argo_pause_rollout` で停止 → `argo_set_rollout_image` で stable(blue)に戻して安全側へ
-  (エージェントのツールに abort は無いので、stable のイメージに戻すことで巻き戻す)
-- 「全体に広げる前に気づいて戻せる」= 段階リリースの価値
+- Argo Rollouts のロールバックは「前の版をもう一度リリースする」こと。
+  watch 画面では版の番号が増える(revision:3)が、ReplicaSet は最初の blue を再利用している
+- 普段は段階を踏む。**緊急時は段階を飛ばして一気に戻す**(`promote --full`)。
+  どちらを選ぶかの判断は人間、実行はエージェント
+- エージェントのツールに undo / abort は無いので、「イメージを戻す」＋「一気に昇格」の
+  組み合わせで同じことを実現している
 
 ### 参考: 手動で行う場合
 ```bash
-kubectl argo rollouts abort demo-rollout -n demo-app
+kubectl argo rollouts undo demo-rollout -n demo-app             # 1つ前の版(blue)に戻す
+kubectl argo rollouts promote demo-rollout -n demo-app --full   # 段階を飛ばして全台を blue に
 ```
+> 完了前(25% か 50% で止まっている間)に戻す場合は、
+> `kubectl argo rollouts abort demo-rollout -n demo-app` で即座に stable(blue)へ戻る。
 
 ## 6. 後片付け / 再演
 
 ```bash
-kubectl argo rollouts get rollout demo-rollout -n demo-app   # 100% 完了の確認
+kubectl argo rollouts get rollout demo-rollout -n demo-app   # blue で Healthy になったことの確認
 
 # デモ5 をもう一度やる場合(Rollout を消して Deployment に戻す → blue に戻る):
 kubectl -n demo-app delete rollout demo-rollout --ignore-not-found

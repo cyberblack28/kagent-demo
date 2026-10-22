@@ -556,7 +556,7 @@ kubectl -n demo-app run curlbox --rm -it --restart=Never \
 
 ### 画面で入力する依頼文
 ```text
-demo-app の demo-rollout を Argo Rollouts のカナリアに移行してください。
+namespace demo-app の deployment demo-rollout を Argo Rollouts のカナリアに移行してください。
 既存の Deployment は削除し、同じ Pod(app=demo-rollout)を管理する Rollout を作成、
 戦略は 25% → pause → 50% → pause → 100% にしてください。
 Rollout の適用まであなたが実行し、Deployment の削除は実行前に確認してください。
@@ -628,7 +628,7 @@ kubectl argo rollouts set image demo-rollout \
 カナリアの状態を argo_rollouts_list で確認して、問題なさそうなら
 argo_promote_rollout で次のステップへ昇格してください。
 100% になるまで、各ステップで状態を報告しながら進めてください。
-100% になったら、移行前の Deployment demo-rollout が残っていないか確認し、
+100% になったら、移行前の namespace demo-app の deployment demo-rollout が残っていないか確認し、
 残っていれば k8s_delete_resource で削除してください。
 ```
 

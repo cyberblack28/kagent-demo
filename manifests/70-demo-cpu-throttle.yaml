@@ -3,7 +3,8 @@
 # - Pod は Running のまま、再起動もしない
 # - Kubernetes の Event は出ない
 # - ログも出ない(sha1sum は出力を捨てている)
-# つまり describe / events / logs では異常に見えず、Prometheus のメトリクスにだけ現れる。
+# つまり describe / events / logs では異常として出てこない。設定(limits とコマンド)から
+# 「絞られていそう」と推測はできるが、実際にどれだけ絞られているかは Prometheus のメトリクスにだけ現れる。
 #
 # 注意:
 # - イメージは OKE の短縮名問題を避けるため docker.io から完全修飾で指定。

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="s2t s2d" font-family="ui-sans-serif, system-ui, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif">
+  <title id="s2t">デモ2: ImagePullBackOff の原因調査と修復</title>
+  <desc id="s2d">コンテナが一度も起動せずログが空の ImagePullBackOff を、k8s-agent が Event の Failed to pull image から存在しないイメージタグが原因と特定し、同じ会話のままイメージを nginx:1.27-alpine に差し替えて修復するデモのスライド。左に2つの依頼文と結果、右に OCI Generative AI・kagent・OCI Kubernetes Engine(demo-imagepull の修復前後)の構成を示す。</desc>
+  <defs>
+    <marker id="sN" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#6b7280"/></marker>
+    <marker id="sG" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#16a34a"/></marker>
+  </defs>
+  <style>
+    .t1{fill:#1a1d21;font-weight:700;} .t2{fill:#6b7280;} .tb{fill:#1a1d21;}
+    .mono{font-family:ui-monospace,'Cascadia Code',Consolas,monospace;}
+    .ok{fill:#16a34a;font-weight:700;} .bad{fill:#dc2626;font-weight:700;} .pur{fill:#7c3aed;font-weight:700;}
+    .pnl{fill:#f6f7f9;stroke:#e2e5ea;} .box{fill:#ffffff;stroke:#d7dbe0;}
+    .lnN{stroke:#6b7280;stroke-width:1.8;} .lnG{stroke:#16a34a;stroke-width:1.8;}
+  </style>
+  <rect x="0" y="0" width="1280" height="720" fill="#ffffff"/>
+
+  <!-- ===== Title ===== -->
+  <text x="40" y="62" font-size="26" class="t1">デモ2: ImagePullBackOff の原因調査と修復</text>
+  <text x="40" y="94" font-size="15" class="t2">コンテナは一度も起動せず、ログは空。Event から原因を読み取って修復する</text>
+
+  <!-- ===== Left: Card 1 (調査) ===== -->
+  <rect class="pnl" x="40" y="124" width="670" height="156" rx="12"/>
+  <rect x="60" y="142" width="112" height="28" rx="14" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="116" y="161" text-anchor="middle" font-size="13" class="t1">k8s-agent</text>
+  <text x="186" y="161" font-size="13.5" class="t2">① 原因を調べてもらう</text>
+  <rect class="box" x="60" y="182" width="630" height="54" rx="8"/>
+  <text x="76" y="205" font-size="14" class="tb">demo-app namespace の demo-imagepull Pod が起動しません。</text>
+  <text x="76" y="225" font-size="14" class="tb">Events を確認して、なぜ起動できないのかを要約してください。</text>
+  <text x="60" y="264" font-size="14" class="t2">→ Event の <tspan class="mono" font-size="13">Failed to pull image</tspan> から、<tspan class="bad">存在しないイメージタグ</tspan>が原因と特定</text>
+
+  <!-- ===== Left: Card 2 (修復) ===== -->
+  <rect class="pnl" x="40" y="298" width="670" height="312" rx="12"/>
+  <rect x="60" y="316" width="112" height="28" rx="14" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="116" y="335" text-anchor="middle" font-size="13" class="t1">k8s-agent</text>
+  <text x="186" y="335" font-size="13.5" class="t2">② 同じ会話のまま、修復まで頼む</text>
+  <rect class="box" x="60" y="356" width="630" height="84" rx="8"/>
+  <text x="76" y="380" font-size="14" class="tb">原因は存在しないイメージタグですね。demo-imagepull Deployment のイメージを</text>
+  <text x="76" y="402" font-size="14" class="tb"><tspan class="mono" font-size="13">docker.io/library/nginx:1.27-alpine</tspan> に変更して修復し、</text>
+  <text x="76" y="424" font-size="14" class="tb">Pod が Running になったことを確認して報告してください。</text>
+
+  <text x="60" y="476" font-size="14" class="t2">→ エージェントが <tspan class="pur">イメージを差し替え</tspan>、rollout の完了まで自分で確認</text>
+  <text x="60" y="502" font-size="14" class="t2">→ <tspan class="ok">ImagePullBackOff から Running へ</tspan>（Restarts は 0 のまま）</text>
+  <text x="60" y="528" font-size="14" class="t2">→ 障害の種類が違っても、「調べて → 直して」という対話の型は同じ</text>
+  <text x="60" y="588" font-size="12.5" class="t2">デモ1はログ、デモ2は Event。見る情報源を、エージェントが自分で切り替えている</text>
+
+  <!-- ===== Right: Architecture ===== -->
+  <rect class="box" x="800" y="124" width="400" height="46" rx="8"/>
+  <text x="1000" y="144" text-anchor="middle" font-size="14" class="t1">OCI Generative AI</text>
+  <text x="1000" y="161" text-anchor="middle" font-size="11" class="t2 mono">openai.gpt-oss-120b</text>
+  <line class="lnN" x1="1000" y1="170" x2="1000" y2="192" marker-end="url(#sN)"/>
+
+  <rect class="pnl" x="760" y="196" width="480" height="188" rx="12"/>
+  <text x="776" y="216" font-size="13" class="t1">kagent</text>
+  <rect x="800" y="226" width="200" height="40" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="900" y="251" text-anchor="middle" font-size="13" class="t1">k8s-agent</text>
+  <rect class="box" x="800" y="326" width="200" height="40" rx="8"/>
+  <text x="900" y="351" text-anchor="middle" font-size="11.5" class="t1 mono">kagent-tool-server</text>
+  <line class="lnN" x1="900" y1="266" x2="900" y2="322" marker-end="url(#sN)"/>
+  <text x="908" y="299" font-size="11" class="t2">MCP</text>
+  <text x="1024" y="322" font-size="10" class="t2">使ったツールの例</text>
+  <text x="1024" y="338" font-size="10" class="t2 mono">k8s_get_events</text>
+  <text x="1024" y="352" font-size="10" class="t2 mono">k8s_describe_resource</text>
+  <text x="1024" y="366" font-size="10" class="t2 mono">k8s_patch_resource</text>
+
+  <rect class="pnl" x="760" y="404" width="480" height="206" rx="12"/>
+  <text x="1012" y="424" text-anchor="middle" font-size="13" class="t1">OCI Kubernetes Engine</text>
+  <rect class="box" x="780" y="434" width="440" height="164" rx="8"/>
+  <text x="792" y="452" font-size="11" class="t2 mono">demo-app</text>
+
+  <text x="890" y="476" text-anchor="middle" font-size="10.5" class="t2">修復前（ログは空）</text>
+  <rect x="800" y="486" width="180" height="88" rx="8" fill="#ffffff" stroke="#dc2626"/>
+  <text x="890" y="510" text-anchor="middle" font-size="12" class="t1 mono">demo-imagepull</text>
+  <text x="890" y="530" text-anchor="middle" font-size="12" class="bad">ImagePullBackOff</text>
+  <text x="890" y="552" text-anchor="middle" font-size="9.5" class="t2 mono">nginx:this-tag-does-not-exist</text>
+
+  <line class="lnG" x1="984" y1="530" x2="1014" y2="530" marker-end="url(#sG)"/>
+  <text x="999" y="520" text-anchor="middle" font-size="10" class="ok">差し替え</text>
+
+  <text x="1110" y="476" text-anchor="middle" font-size="10.5" class="t2">修復後</text>
+  <rect x="1020" y="486" width="180" height="88" rx="8" fill="#ffffff" stroke="#16a34a"/>
+  <text x="1110" y="510" text-anchor="middle" font-size="12" class="t1 mono">demo-imagepull</text>
+  <text x="1110" y="530" text-anchor="middle" font-size="12" class="ok">Running</text>
+  <text x="1110" y="552" text-anchor="middle" font-size="10" class="t2 mono">nginx:1.27-alpine</text>
+
+  <line class="lnN" x1="900" y1="366" x2="900" y2="430" marker-end="url(#sN)"/>
+  <text x="908" y="398" font-size="10" class="t2">describe / events → イメージ変更</text>
+
+  <!-- ===== Bottom message ===== -->
+  <rect x="40" y="632" width="1200" height="64" rx="12" fill="#f6f7f9" stroke="#e2e5ea"/>
+  <text x="62" y="660" font-size="15" class="t1">ログが空でも、<tspan class="pur">Event から原因を引き出せる</tspan></text>
+  <text x="62" y="684" font-size="13" class="t2">障害の種類によって見るべき情報源は変わる。その切り替えもエージェントに任せられる</text>
+</svg>

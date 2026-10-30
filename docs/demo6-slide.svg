@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="s6t s6d" font-family="ui-sans-serif, system-ui, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif">
+  <title id="s6t">デモ6: イベント駆動でエージェントを自動起動する(khook)</title>
+  <desc id="s6d">khook の Hook で「Pod が再起動したら k8s-agent にこのプロンプトで調査させる」と YAML で宣言し、障害を起こすだけで、人がチャットを打たなくても k8s-agent が A2A で呼ばれて調査・報告するデモのスライド。同じイベントは 10 分間抑制され、変更はさせず調査と報告だけに留める。右に OCI Generative AI・kagent(khook、k8s-agent、kagent-tool-server)・OCI Kubernetes Engine(demo-crashloop の Event)の構成を示す。</desc>
+  <defs>
+    <marker id="sN" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#6b7280"/></marker>
+    <marker id="sP" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#7c3aed"/></marker>
+    <marker id="sR" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#dc2626"/></marker>
+  </defs>
+  <style>
+    .t1{fill:#1a1d21;font-weight:700;} .t2{fill:#6b7280;} .tb{fill:#1a1d21;}
+    .mono{font-family:ui-monospace,'Cascadia Code',Consolas,monospace;}
+    .ok{fill:#16a34a;font-weight:700;} .bad{fill:#dc2626;font-weight:700;} .pur{fill:#7c3aed;font-weight:700;}
+    .key{fill:#2563eb;}
+    .pnl{fill:#f6f7f9;stroke:#e2e5ea;} .box{fill:#ffffff;stroke:#d7dbe0;}
+    .lnN{stroke:#6b7280;stroke-width:1.8;} .lnP{stroke:#7c3aed;stroke-width:1.8;} .lnR{stroke:#dc2626;stroke-width:1.8;}
+  </style>
+  <rect x="0" y="0" width="1280" height="720" fill="#ffffff"/>
+
+  <!-- ===== Title ===== -->
+  <text x="40" y="62" font-size="26" class="t1">デモ6: イベント駆動でエージェントを自動起動する（khook）</text>
+  <text x="40" y="94" font-size="15" class="t2">人が頼まなくても、Kubernetes の Event がエージェントを呼ぶ</text>
+
+  <!-- ===== Left: Card 1 (Hook) ===== -->
+  <rect class="pnl" x="40" y="124" width="670" height="244" rx="12"/>
+  <rect x="60" y="142" width="112" height="28" rx="14" fill="#f3e8ff" stroke="#7c3aed"/>
+  <text x="116" y="161" text-anchor="middle" font-size="13" class="pur">Hook</text>
+  <text x="186" y="161" font-size="13.5" class="t2">① 「何が起きたら、誰に、何を頼むか」を YAML で宣言する</text>
+  <rect class="box" x="60" y="182" width="630" height="150" rx="8"/>
+  <text x="76" y="204" font-size="12.5" class="tb mono"><tspan class="key">kind:</tspan> Hook</text>
+  <text x="76" y="222" font-size="12.5" class="tb mono"><tspan class="key">spec.eventConfigurations:</tspan></text>
+  <text x="92" y="240" font-size="12.5" class="tb mono">- <tspan class="key">eventType:</tspan> pod-restart<tspan class="t2" x="430"># Pod が再起動したら</tspan></text>
+  <text x="108" y="258" font-size="12.5" class="tb mono"><tspan class="key">agentRef:</tspan> kagent/k8s-agent<tspan class="t2" x="430"># このエージェントに</tspan></text>
+  <text x="108" y="276" font-size="12.5" class="tb mono"><tspan class="key">prompt:</tspan> |<tspan class="t2" x="430"># このプロンプトで頼む</tspan></text>
+  <text x="124" y="294" font-size="12.5" class="tb mono">Pod {{.ResourceName}} が {{.EventTime}} に再起動しました。</text>
+  <text x="124" y="312" font-size="12.5" class="tb mono">調査のみを行い、クラスタへの変更は一切しないでください。…</text>
+  <text x="60" y="356" font-size="14" class="t2">→ エージェント呼び出しの自動化も、<tspan class="pur">Kubernetes のリソースとして宣言的に管理</tspan>できる</text>
+
+  <!-- ===== Left: Card 2 (自動起動) ===== -->
+  <rect class="pnl" x="40" y="382" width="670" height="228" rx="12"/>
+  <rect x="60" y="400" width="112" height="28" rx="14" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="116" y="419" text-anchor="middle" font-size="13" class="t1">人</text>
+  <text x="186" y="419" font-size="13.5" class="t2">② 障害を起こして、待つだけ（チャットは一切打たない）</text>
+  <rect class="box" x="60" y="440" width="630" height="40" rx="8"/>
+  <text x="76" y="465" font-size="13" class="tb mono">kubectl apply -f manifests/20-demo-fault-crashloop.yaml</text>
+
+  <text x="60" y="512" font-size="14" class="t2">→ khook が Pod の再起動を検知し、<tspan class="pur">A2A で k8s-agent を呼び出す</tspan>（約10秒）</text>
+  <text x="60" y="538" font-size="14" class="t2">→ UI に <tspan class="ok mono" font-size="13">hook-pod-restart-&lt;timestamp&gt;</tspan> という、誰も打っていないセッションが残る</text>
+  <text x="60" y="564" font-size="14" class="t2">→ 同じイベントは 10 分間抑制（dedup）。何度再起動しても、呼び出しは1回</text>
+  <text x="60" y="594" font-size="12.5" class="t2">あえて「調べて報告するだけ」に留めた。変更まで任せるかは設計事項</text>
+
+  <!-- ===== Right: Architecture ===== -->
+  <rect class="box" x="800" y="124" width="400" height="46" rx="8"/>
+  <text x="1000" y="144" text-anchor="middle" font-size="14" class="t1">OCI Generative AI</text>
+  <text x="1000" y="161" text-anchor="middle" font-size="11" class="t2 mono">openai.gpt-oss-120b</text>
+  <line class="lnN" x1="1100" y1="170" x2="1100" y2="192" marker-end="url(#sN)"/>
+
+  <rect class="pnl" x="760" y="196" width="480" height="188" rx="12"/>
+  <text x="776" y="216" font-size="13" class="t1">kagent</text>
+  <rect x="780" y="226" width="160" height="40" rx="8" fill="#ffffff" stroke="#7c3aed"/>
+  <text x="860" y="251" text-anchor="middle" font-size="13" class="pur">khook</text>
+  <rect x="1000" y="226" width="200" height="40" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1100" y="251" text-anchor="middle" font-size="13" class="t1">k8s-agent</text>
+  <line class="lnP" x1="940" y1="246" x2="994" y2="246" marker-end="url(#sP)"/>
+  <text x="967" y="238" text-anchor="middle" font-size="11" class="pur">A2A</text>
+  <text x="868" y="296" font-size="10" class="t2">dedup：同じイベントは 10 分間抑制</text>
+
+  <rect class="box" x="1000" y="326" width="200" height="40" rx="8"/>
+  <text x="1100" y="351" text-anchor="middle" font-size="11.5" class="t1 mono">kagent-tool-server</text>
+  <line class="lnN" x1="1100" y1="266" x2="1100" y2="322" marker-end="url(#sN)"/>
+  <text x="1108" y="299" font-size="11" class="t2">MCP</text>
+
+  <rect class="pnl" x="760" y="404" width="480" height="206" rx="12"/>
+  <text x="1012" y="424" text-anchor="middle" font-size="13" class="t1">OCI Kubernetes Engine</text>
+  <rect class="box" x="780" y="434" width="440" height="164" rx="8"/>
+  <text x="792" y="452" font-size="11" class="t2 mono">demo-app</text>
+
+  <rect x="800" y="490" width="180" height="76" rx="8" fill="#ffffff" stroke="#dc2626"/>
+  <text x="890" y="514" text-anchor="middle" font-size="12" class="t1 mono">demo-crashloop</text>
+  <text x="890" y="534" text-anchor="middle" font-size="12" class="bad">CrashLoopBackOff</text>
+  <text x="890" y="553" text-anchor="middle" font-size="10" class="t2">再起動のたびに Event が出る</text>
+
+  <rect x="1020" y="490" width="180" height="76" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1110" y="514" text-anchor="middle" font-size="12" class="t1">Hook</text>
+  <text x="1110" y="532" text-anchor="middle" font-size="10.5" class="t2 mono">demo-app-pod-restart</text>
+  <text x="1110" y="552" text-anchor="middle" font-size="10" class="t2">status: firing（追跡中）</text>
+
+  <!-- Event goes up to khook -->
+  <line class="lnR" x1="860" y1="486" x2="860" y2="270" marker-end="url(#sR)"/>
+  <text x="868" y="340" font-size="10" class="bad">Event（pod-restart）</text>
+  <!-- tool server reads -->
+  <line class="lnN" x1="1100" y1="366" x2="1100" y2="430" marker-end="url(#sN)"/>
+  <text x="1092" y="398" text-anchor="end" font-size="10" class="t2">読み取りのみ：describe / logs / events</text>
+
+  <!-- ===== Bottom message ===== -->
+  <rect x="40" y="632" width="1200" height="64" rx="12" fill="#f6f7f9" stroke="#e2e5ea"/>
+  <text x="62" y="660" font-size="15" class="t1">「人が聞く」から<tspan class="pur">「イベントが呼ぶ」へ</tspan>。Kubernetes のループに LLM の判断が入る</text>
+  <text x="62" y="684" font-size="13" class="t2">まずは自動で調べて報告まで。変更は人が承認する、という順序が現実的</text>
+</svg>

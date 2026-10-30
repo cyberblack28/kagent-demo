@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1280 720" width="1280" height="720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="s5t s5d" font-family="ui-sans-serif, system-ui, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif">
+  <title id="s5t">デモ5: Deployment → Argo Rollouts カナリアへの移行</title>
+  <desc id="s5d">argo-rollouts-conversion-agent に、Deployment demo-rollout を Argo Rollouts のカナリア(25% → pause → 50% → pause → 100%)へ移行させるデモのスライド。削除の前には人に確認させ、イメージ更新でカナリアを開始し、昇格(promote)を人の承認として進め、問題が見つかれば段階を飛ばして blue に戻す。右に OCI Generative AI・kagent・OCI Kubernetes Engine(Rollout の Pod が blue と yellow で混在する様子と Argo Rollouts コントローラ)の構成を示す。</desc>
+  <defs>
+    <marker id="sN" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#6b7280"/></marker>
+  </defs>
+  <style>
+    .t1{fill:#1a1d21;font-weight:700;} .t2{fill:#6b7280;} .tb{fill:#1a1d21;}
+    .mono{font-family:ui-monospace,'Cascadia Code',Consolas,monospace;}
+    .ok{fill:#16a34a;font-weight:700;} .bad{fill:#dc2626;font-weight:700;} .pur{fill:#7c3aed;font-weight:700;}
+    .blu{fill:#2563eb;font-weight:700;} .yel{fill:#ca8a04;font-weight:700;}
+    .pnl{fill:#f6f7f9;stroke:#e2e5ea;} .box{fill:#ffffff;stroke:#d7dbe0;}
+    .lnN{stroke:#6b7280;stroke-width:1.8;}
+  </style>
+  <rect x="0" y="0" width="1280" height="720" fill="#ffffff"/>
+
+  <!-- ===== Title ===== -->
+  <text x="40" y="62" font-size="26" class="t1">デモ5: Deployment → Argo Rollouts カナリアへの移行</text>
+  <text x="40" y="94" font-size="15" class="t2">書き方を知らなくても、対話でカナリアを導入する。昇格の「承認」は人間</text>
+
+  <!-- ===== Left: Card 1 (移行) ===== -->
+  <rect class="pnl" x="40" y="124" width="670" height="186" rx="12"/>
+  <rect x="60" y="142" width="250" height="28" rx="14" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="185" y="161" text-anchor="middle" font-size="13" class="t1">argo-rollouts-conversion-agent</text>
+  <text x="324" y="161" font-size="13.5" class="t2">① Rollout への移行を頼む</text>
+  <rect class="box" x="60" y="182" width="630" height="98" rx="8"/>
+  <text x="76" y="205" font-size="14" class="tb">namespace demo-app の deployment demo-rollout を Argo Rollouts のカナリアに</text>
+  <text x="76" y="227" font-size="14" class="tb">移行してください。既存の Deployment は削除し、同じ Pod(app=demo-rollout)を</text>
+  <text x="76" y="249" font-size="14" class="tb">管理する Rollout を作成、戦略は 25% → pause → 50% → pause → 100% にしてください。</text>
+  <text x="76" y="271" font-size="14" class="tb">Rollout の適用まであなたが実行し、Deployment の削除は実行前に確認してください。</text>
+  <text x="60" y="300" font-size="14" class="t2">→ Rollout を作って適用。<tspan class="bad">元に戻せない削除の前に、「削除してよいですか？」と人に確認</tspan></text>
+
+  <!-- ===== Left: Card 2 (カナリア〜ロールバック) ===== -->
+  <rect class="pnl" x="40" y="324" width="670" height="286" rx="12"/>
+  <rect x="60" y="342" width="250" height="28" rx="14" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="185" y="361" text-anchor="middle" font-size="13" class="t1">argo-rollouts-conversion-agent</text>
+  <text x="324" y="361" font-size="13.5" class="t2">② カナリア開始 → 昇格 → ロールバック</text>
+  <rect class="box" x="60" y="382" width="630" height="112" rx="8"/>
+  <text x="76" y="405" font-size="13.5" class="tb">・yellow のイメージに更新して、カナリアを開始してください</text>
+  <text x="76" y="427" font-size="13.5" class="tb">・問題なさそうなら、次のステップへ昇格（promote）してください</text>
+  <text x="76" y="449" font-size="13.5" class="tb">・問題が見つかりました。段階を踏まずに全台を blue に戻してください</text>
+  <text x="76" y="480" font-size="11" class="t2">※ 依頼文は要約。実際は使うツール名と、更新後の確認方法まで書く（demo.md 参照）</text>
+
+  <text x="60" y="526" font-size="14" class="t2">→ ブラウザの色が <tspan class="blu">青</tspan> → <tspan class="yel">黄 1/4</tspan> → <tspan class="yel">1/2</tspan> → <tspan class="yel">全部</tspan> と段階的に変わる</text>
+  <text x="60" y="552" font-size="14" class="t2">→ <tspan class="pur">promote（昇格）＝ 人間の承認</tspan>。実行はエージェント</text>
+  <text x="60" y="578" font-size="14" class="t2">→ 緊急時は<tspan class="ok">段階を飛ばして blue に一気に戻す</tspan>（promote full）</text>
+
+  <!-- ===== Right: Architecture ===== -->
+  <rect class="box" x="800" y="124" width="400" height="46" rx="8"/>
+  <text x="1000" y="144" text-anchor="middle" font-size="14" class="t1">OCI Generative AI</text>
+  <text x="1000" y="161" text-anchor="middle" font-size="11" class="t2 mono">openai.gpt-oss-120b</text>
+  <line class="lnN" x1="1000" y1="170" x2="1000" y2="192" marker-end="url(#sN)"/>
+
+  <rect class="pnl" x="760" y="196" width="480" height="188" rx="12"/>
+  <text x="776" y="216" font-size="13" class="t1">kagent</text>
+  <rect x="800" y="226" width="260" height="40" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="930" y="251" text-anchor="middle" font-size="13" class="t1">argo-rollouts-conversion-agent</text>
+  <rect class="box" x="830" y="326" width="200" height="40" rx="8"/>
+  <text x="930" y="351" text-anchor="middle" font-size="11.5" class="t1 mono">kagent-tool-server</text>
+  <line class="lnN" x1="930" y1="266" x2="930" y2="322" marker-end="url(#sN)"/>
+  <text x="938" y="299" font-size="11" class="t2">MCP</text>
+  <text x="1054" y="322" font-size="10" class="t2">使ったツールの例</text>
+  <text x="1054" y="338" font-size="10" class="t2 mono">argo_set_rollout_image</text>
+  <text x="1054" y="352" font-size="10" class="t2 mono">argo_promote_rollout</text>
+  <text x="1054" y="366" font-size="10" class="t2 mono">argo_rollouts_list</text>
+
+  <rect class="pnl" x="760" y="404" width="480" height="206" rx="12"/>
+  <text x="1012" y="424" text-anchor="middle" font-size="13" class="t1">OCI Kubernetes Engine</text>
+
+  <rect class="box" x="780" y="434" width="290" height="164" rx="8"/>
+  <text x="792" y="452" font-size="11" class="t2 mono">demo-app</text>
+  <text x="925" y="474" text-anchor="middle" font-size="11" class="t2"><tspan text-decoration="line-through">Deployment</tspan> → <tspan class="t1">Rollout</tspan> <tspan class="mono t1">demo-rollout</tspan></text>
+  <!-- pods at 25% -->
+  <rect x="806" y="490" width="52" height="40" rx="6" fill="#dbeafe" stroke="#2563eb"/>
+  <rect x="866" y="490" width="52" height="40" rx="6" fill="#dbeafe" stroke="#2563eb"/>
+  <rect x="926" y="490" width="52" height="40" rx="6" fill="#dbeafe" stroke="#2563eb"/>
+  <rect x="986" y="490" width="52" height="40" rx="6" fill="#fef9c3" stroke="#ca8a04"/>
+  <text x="832" y="514" text-anchor="middle" font-size="10" class="blu">blue</text>
+  <text x="892" y="514" text-anchor="middle" font-size="10" class="blu">blue</text>
+  <text x="952" y="514" text-anchor="middle" font-size="10" class="blu">blue</text>
+  <text x="1012" y="514" text-anchor="middle" font-size="10" class="yel">yellow</text>
+  <text x="925" y="550" text-anchor="middle" font-size="10.5" class="t2">25% カナリアで pause 中（新旧の Pod が混在）</text>
+  <text x="925" y="572" text-anchor="middle" font-size="10" class="t2">Service <tspan class="mono">demo-rollout</tspan> は変更しない</text>
+
+  <rect class="box" x="1086" y="434" width="134" height="164" rx="8"/>
+  <text x="1098" y="452" font-size="11" class="t2 mono">argo-rollouts</text>
+  <rect x="1100" y="490" width="106" height="52" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1153" y="512" text-anchor="middle" font-size="11.5" class="t1">Argo Rollouts</text>
+  <text x="1153" y="530" text-anchor="middle" font-size="10.5" class="t2">コントローラ</text>
+  <line class="lnN" x1="1096" y1="516" x2="1046" y2="516" marker-end="url(#sN)"/>
+  <text x="1153" y="566" text-anchor="middle" font-size="9.5" class="t2">Pod を段階的に</text>
+  <text x="1153" y="580" text-anchor="middle" font-size="9.5" class="t2">入れ替える</text>
+
+  <line class="lnN" x1="930" y1="366" x2="930" y2="460" marker-end="url(#sN)"/>
+  <text x="938" y="398" font-size="10" class="t2">Rollout 作成 / イメージ更新 / promote</text>
+
+  <!-- ===== Bottom message ===== -->
+  <rect x="40" y="632" width="1200" height="64" rx="12" fill="#f6f7f9" stroke="#e2e5ea"/>
+  <text x="62" y="660" font-size="15" class="t1">新しいリリース手法の導入まで任せられる。<tspan class="pur">意図と承認は人間、実行はエージェント</tspan></text>
+  <text x="62" y="684" font-size="13" class="t2">削除や昇格の前には人に確認させる。報告は kubectl argo rollouts get で必ず裏取りする</text>
+</svg>
